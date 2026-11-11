@@ -1,482 +1,255 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Спидометр</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Inter:wght@400;500;600&display=swap">
-<style>
-/* Layout: one centered column, gauge on top, sensor status chips, readouts and controls below */
-:root {
-  --bg: #eceff1;
-  --panel: #ffffff;
-  --fg: #12181d;
-  --muted: #5b6770;
-  --line: #d3d9dd;
-  --accent: #0b8f9c;
-  --needle: #d6342a;
-  --warn: #b26a00;
-  --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
-  --font-text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa;
-    --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa;
-  --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a;
-  color-scheme: dark;
-}
-body {
-  background: var(--bg); color: var(--fg);
-  font-family: var(--font-text); font-size: 15px; line-height: 1.45;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 20px;
-}
-.wrap { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-h1 { font-family: var(--font-num); font-weight: 600; font-size: 1.5rem; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
-.badge { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); padding: 3px 9px; border-radius: 99px; }
-.badge.live { color: var(--accent); border-color: var(--accent); }
-.badge.demo { color: var(--warn); border-color: var(--warn); }
-.gauge { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 8px 8px 6px; }
-svg { display: block; width: 100%; height: auto; max-width: 100%; }
-.track { fill: none; stroke: var(--line); stroke-width: 12; stroke-linecap: round; }
-.fill { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; }
-.tick { stroke: var(--muted); stroke-width: 1.5; }
-.tick.major { stroke: var(--fg); stroke-width: 2.5; }
-.lbl { fill: var(--muted); font-family: var(--font-num); font-size: 17px; text-anchor: middle; dominant-baseline: middle; }
-.needle { stroke: var(--needle); stroke-width: 3.5; stroke-linecap: round; }
-.hub { fill: var(--panel); stroke: var(--needle); stroke-width: 3; }
-.digits { font-family: var(--font-num); font-weight: 600; font-size: 64px; fill: var(--fg); text-anchor: middle; font-variant-numeric: tabular-nums; }
-.unit { font-family: var(--font-text); font-size: 13px; letter-spacing: .12em; fill: var(--muted); text-anchor: middle; text-transform: uppercase; }
-.pills { display: flex; flex-wrap: wrap; gap: 8px; }
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); border: 1px solid var(--line); background: var(--panel); padding: 4px 10px; border-radius: 99px; }
-.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
-.pill.ok { color: var(--fg); }
-.pill.ok i { background: var(--accent); }
-.pill.bad { color: var(--warn); border-color: var(--warn); }
-.pill.bad i { background: var(--warn); }
-.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
-.stat span { display: block; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.stat b { font-family: var(--font-num); font-weight: 600; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
-.stat small { font-size: .8rem; color: var(--muted); font-weight: 400; }
-.row { display: flex; flex-wrap: wrap; gap: 10px; }
-button {
-  font: inherit; font-weight: 600; cursor: pointer; flex: 1 1 120px;
-  padding: 13px 16px; border-radius: 12px; border: 1px solid var(--line);
-  background: var(--panel); color: var(--fg);
-}
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-#msg { min-height: 1.4em; margin: 0; color: var(--muted); font-size: .9rem; }
-#msg.err { color: var(--warn); }
-.note { margin: 0; font-size: .82rem; color: var(--muted); }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Инерциальный Спидометр</title>
+    <style>
+        :root { --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa; --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a; }
+        body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; padding: 16px; margin: 0; display: flex; justify-content: center; }
+        .wrap { width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 14px; }
+        header { display: flex; align-items: center; justify-content: space-between; }
+        h1 { font-size: 1.3rem; text-transform: uppercase; margin: 0; }
+        .badge { font-size: .75rem; border: 1px solid var(--line); padding: 3px 9px; border-radius: 99px; color: var(--muted); }
+        .gauge { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 8px; }
+        svg { display: block; width: 100%; height: auto; }
+        .track { fill: none; stroke: var(--line); stroke-width: 10; stroke-linecap: round; }
+        .fill { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; }
+        .tick { stroke: var(--muted); stroke-width: 1.5; }
+        .tick.major { stroke: var(--fg); stroke-width: 2.5; }
+        .lbl { fill: var(--muted); font-size: 16px; text-anchor: middle; }
+        .needle { stroke: var(--needle); stroke-width: 3; stroke-linecap: round; }
+        .hub { fill: var(--panel); stroke: var(--needle); stroke-width: 3; }
+        .digits { font-size: 60px; fill: var(--fg); text-anchor: middle; font-weight: 600; }
+        .unit { font-size: 12px; fill: var(--muted); text-anchor: middle; }
+        .row { display: flex; gap: 8px; }
+        button { flex: 1; font: inherit; font-weight: 600; cursor: pointer; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+        button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+        #msg { font-size: .9rem; color: var(--muted); text-align: center; min-height: 1.2em; }
+    </style>
 </head>
 <body>
-
 <div class="wrap">
-  <header>
-    <h1>Спидометр</h1>
-    <span id="badge" class="badge">Выкл.</span>
-  </header>
-
-  <div class="gauge">
-    <svg id="svg" viewBox="0 0 300 268" role="img" aria-label="Стрелочный спидометр, шкала 0–120 км/ч"></svg>
-  </div>
-
-  <div class="pills" aria-label="Состояние датчиков">
-    <span class="pill" id="p-acc"><i></i>Ускорение</span>
-    <span class="pill" id="p-gyro"><i></i>Гироскоп</span>
-    <span class="pill" id="p-mag"><i></i>Компас</span>
-    <span class="pill" id="p-gps"><i></i>GPS</span>
-  </div>
-
-  <div class="stats">
-    <div class="stat"><span>Максимум</span><b id="peak">0</b> <small>км/ч</small></div>
-    <div class="stat"><span>Курс</span><b id="hdg">0°</b> <small id="side">С</small></div>
-    <div class="stat"><span>Ускорение</span><b id="acc">0.0</b> <small>м/с²</small></div>
-  </div>
-
-  <div class="row">
-    <button id="start" class="primary" type="button">Старт</button>
-    <button id="demo" type="button">Демо</button>
-    <button id="reset" type="button">Обнулить</button>
-  </div>
-
-  <p id="msg">Закрепите телефон в держателе и нажмите «Старт». Разрешите доступ к датчикам и геолокации.</p>
-  <p class="note">Ориентацию телефона определяют акселерометр, гироскоп и компас вместе. Скорость считается по ускорению в сторонах света и каждую секунду поправляется по GPS. Без GPS на постоянной скорости спидометр её не удержит.</p>
+    <header><h1>Трекер</h1><span id="badge" class="badge">Выкл.</span></header>
+    <div class="gauge"><svg id="svg" viewBox="0 0 300 268"></svg></div>
+    <div class="row">
+        <button id="start" class="primary">Старт</button>
+        <button id="calibrate">Установить 0°</button>
+    </div>
+    <p id="msg">Нажмите «Старт» и разрешите доступ к датчикам.</p>
 </div>
 
 <script>
-(function () {
-  var MAX = 120, CX = 150, CY = 150, RAD = 110, A0 = 135, SWEEP = 270;
-  var D = Math.PI / 180;
-  var NS = "http://www.w3.org/2000/svg";
-  var svg = document.getElementById("svg");
+(function() {
+    var MAX = 120, CX = 150, CY = 150, RAD = 110, A0 = 135, SWEEP = 270;
+    var D = Math.PI / 180;
+    var svg = document.getElementById("svg");
 
-  function pt(deg, r) {
-    var a = deg * D;
-    return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
-  }
-  function el(name, attrs, text) {
-    var n = document.createElementNS(NS, name);
-    for (var k in attrs) n.setAttribute(k, attrs[k]);
-    if (text != null) n.textContent = text;
-    svg.appendChild(n);
-    return n;
-  }
-
-  var s = pt(A0, RAD), e = pt(A0 + SWEEP, RAD);
-  var d = "M " + s[0] + " " + s[1] + " A " + RAD + " " + RAD + " 0 1 1 " + e[0] + " " + e[1];
-  el("path", { d: d, "class": "track" });
-  var fill = el("path", { d: d, "class": "fill", pathLength: "100", "stroke-dasharray": "0 100" });
-
-  for (var v = 0; v <= MAX; v += 10) {
-    var ang = A0 + SWEEP * v / MAX, major = v % 20 === 0;
-    var p1 = pt(ang, RAD - 12), p2 = pt(ang, RAD - (major ? 28 : 21));
-    el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], "class": "tick" + (major ? " major" : "") });
-    if (major) {
-      var pl = pt(ang, RAD - 45);
-      el("text", { x: pl[0], y: pl[1], "class": "lbl" }, String(v));
+    // Отрисовка шкалы
+    function pt(deg, r) { var a = deg * D; return [CX + r * Math.cos(a), CY + r * Math.sin(a)]; }
+    function el(name, attrs, text) {
+        var n = document.createElementNS("http://www.w3.org/2000/svg", name);
+        for (var k in attrs) n.setAttribute(k, attrs[k]);
+        if (text != null) n.textContent = text;
+        svg.appendChild(n); return n;
     }
-  }
 
-  var needle = el("line", { x1: CX, y1: CY, x2: CX, y2: CY - (RAD - 22), "class": "needle" });
-  el("circle", { cx: CX, cy: CY, r: 9, "class": "hub" });
-  var digits = el("text", { x: CX, y: 226, "class": "digits" }, "0");
-  el("text", { x: CX, y: 248, "class": "unit" }, "км/ч");
+    var s = pt(A0, RAD), e = pt(A0 + SWEEP, RAD);
+    var d = "M " + s[0] + " " + s[1] + " A " + RAD + " " + RAD + " 0 1 1 " + e[0] + " " + e[1];
+    el("path", { d: d, "class": "track" });
+    var fill = el("path", { d: d, "class": "fill", pathLength: "100", "stroke-dasharray": "0 100" });
 
-  var $ = function (id) { return document.getElementById(id); };
-  var badge = $("badge"), msg = $("msg"), peakEl = $("peak"), accEl = $("acc"), hdgEl = $("hdg"), sideEl = $("side");
-  var SIDES = ["С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ"];
-
-  function say(text, isErr) { msg.textContent = text; msg.className = isErr ? "err" : ""; }
-  function setBadge(text, cls) { badge.textContent = text; badge.className = "badge" + (cls ? " " + cls : ""); }
-
-  /* ---------- состояние ---------- */
-  // have: 0 — ждём, 1 — работает, -1 — недоступно
-  var have = { acc: 0, gyro: 0, mag: 0, gps: 0 };
-  var PILL = { acc: $("p-acc"), gyro: $("p-gyro"), mag: $("p-mag"), gps: $("p-gps") };
-  function renderPills() {
-    for (var k in PILL) PILL[k].className = "pill" + (have[k] > 0 ? " ok" : have[k] < 0 ? " bad" : "");
-  }
-
-  var Rm = null;                       // поворот телефон → мир (x восток, y север, z вверх)
-  var ve = 0, vn = 0;                  // скорость на восток и на север, м/с
-  var speed = 0, shown = 0, peak = 0, accMag = 0, gyroMag = 0;
-  var fe = 0, fn = 0, lastA = 0, quiet = 0;
-  var hE = 0, hN = 1, heading = 0, absSeen = false;
-  var mode = "off";                    // off | run | demo
-  var sensors = [], eventsOn = false, geoId = null, waitTimer = null, demoT = 0, lastFix = 0;
-
-  var HTTPS_MSG = "Страница открыта по адресу " + location.protocol + "//, а браузер отдаёт датчики и геолокацию только по HTTPS (или с localhost). Откройте страницу с хостинга по https://.";
-
-  function resetMotion() {
-    ve = vn = 0; speed = 0; peak = 0; accMag = 0; fe = fn = 0; lastA = 0; quiet = 0; demoT = 0;
-  }
-
-  function syncUi() {
-    $("start").textContent = mode === "run" ? "Остановить" : "Старт";
-    $("demo").textContent = mode === "demo" ? "Остановить демо" : "Демо";
-  }
-
-  function stopSensors() {
-    for (var i = 0; i < sensors.length; i++) { try { sensors[i].stop(); } catch (err) {} }
-    sensors = [];
-  }
-
-  function stopAll() {
-    stopSensors();
-    window.removeEventListener("deviceorientationabsolute", onOrientEv, true);
-    window.removeEventListener("deviceorientation", onOrientEv, true);
-    window.removeEventListener("devicemotion", onMotion, true);
-    eventsOn = false;
-    if (geoId != null && navigator.geolocation) { navigator.geolocation.clearWatch(geoId); geoId = null; }
-    clearTimeout(waitTimer);
-  }
-
-  function fail(text) {
-    stopAll(); mode = "off"; syncUi(); setBadge("Выкл.", "");
-    have.acc = have.gyro = have.mag = have.gps = 0; renderPills();
-    say(text, true);
-  }
-
-  function refreshStatus() {
-    if (mode !== "run") return;
-    if (have.acc > 0 || have.gps > 0) setBadge("Работает", "live");
-    var miss = [];
-    if (have.gyro < 0) miss.push("гироскопа");
-    if (have.mag < 0) miss.push("компаса");
-    var t, bad = true;
-    if (have.gps < 0 && have.acc < 0) t = "Нет ни GPS, ни датчика ускорения, скорость определить нечем. Проверьте разрешения сайта: «Датчики движения» и «Геоданные».";
-    else if (have.gps < 0) t = "GPS недоступен: скорость считается только по датчикам и на постоянном ходу не держится. Разрешите сайту геоданные.";
-    else if (have.acc < 0) t = "Датчик ускорения недоступен: скорость берётся только из GPS и обновляется раз в секунду.";
-    else if (miss.length) t = "Нет данных " + miss.join(" и ") + ", точность ниже.";
-    else if (have.acc > 0 && have.mag > 0 && have.gps > 0) { t = "Всё работает. Скорость идёт от датчиков и поправляется по GPS."; bad = false; }
-    else { t = "Запускаю датчики…"; bad = false; }
-    say(t, bad);
-  }
-
-  /* ---------- ориентация ---------- */
-  function setR(m, compassOk) {
-    Rm = m;
-    var want = compassOk ? 1 : -1;
-    if (have.mag !== want) { have.mag = want; renderPills(); refreshStatus(); }
-    // курс: куда смотрит верхний край экрана или задняя камера, смотря что ближе к горизонтали
-    var yE = m[0][1], yN = m[1][1], zE = -m[0][2], zN = -m[1][2];
-    var hy = Math.sqrt(yE * yE + yN * yN), hz = Math.sqrt(zE * zE + zN * zN);
-    var ee = hy >= hz ? yE : zE, nn = hy >= hz ? yN : zN, hh = Math.max(hy, hz);
-    if (hh > 0.2) {
-      hE += (ee / hh - hE) * 0.15; hN += (nn / hh - hN) * 0.15;
-      heading = (Math.atan2(hE, hN) / D + 360) % 360;
+    for (var v = 0; v <= MAX; v += 10) {
+        var ang = A0 + SWEEP * v / MAX, major = v % 20 === 0;
+        var p1 = pt(ang, RAD - 10), p2 = pt(ang, RAD - (major ? 25 : 18));
+        el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], "class": "tick" + (major ? " major" : "") });
+        if (major) { var pl = pt(ang, RAD - 42); el("text", { x: pl[0], y: pl[1], "class": "lbl" }, String(v)); }
     }
-  }
 
-  function setQuat(q) {
-    if (!q) return;
-    var x = q[0], y = q[1], z = q[2], w = q[3];
-    var xx = x * x, yy = y * y, zz = z * z, xy = x * y, xz = x * z, yz = y * z, xw = x * w, yw = y * w, zw = z * w;
-    setR([[1 - 2 * (yy + zz), 2 * (xy - zw), 2 * (xz + yw)],
-          [2 * (xy + zw), 1 - 2 * (xx + zz), 2 * (yz - xw)],
-          [2 * (xz - yw), 2 * (yz + xw), 1 - 2 * (xx + yy)]], true);
-  }
+    var needle = el("line", { x1: CX, y1: CY, x2: CX, y2: CY - (RAD - 20), "class": "needle" });
+    el("circle", { cx: CX, cy: CY, r: 8, "class": "hub" });
+    var digits = el("text", { x: CX, y: 220, "class": "digits" }, "0");
+    el("text", { x: CX, y: 242, "class": "unit" }, "км/ч");
 
-  function setEuler(aDeg, bDeg, gDeg, compassOk) {
-    var a = aDeg * D, b = bDeg * D, g = gDeg * D;
-    var cA = Math.cos(a), sA = Math.sin(a), cB = Math.cos(b), sB = Math.sin(b), cG = Math.cos(g), sG = Math.sin(g);
-    setR([[cA * cG - sA * sB * sG, -cB * sA, cG * sA * sB + cA * sG],
-          [cG * sA + cA * sB * sG, cA * cB, sA * sG - cA * cG * sB],
-          [-cB * sG, sB, cB * cG]], compassOk);
-  }
+    // --- Состояние ---
+    var $ = function(id) { return document.getElementById(id); };
+    var badge = $("badge"), msg = $("msg");
+    
+    var Rm = null;          // Текущая матрица поворота
+    var Fx = 0, Fy = 0;     // Вектор "Вперед" машины (зафиксированный при 0°)
+    
+    var ve = 0, vn = 0;     // Скорость в Земле (Восток, Север)
+    var speed = 0, shown = 0, gyroMag = 0;
+    var fe = 0, fn = 0;     
+    var lastA = 0;
+    var mode = "off";       
+    var sensors = [];
 
-  /* ---------- ускорение и гироскоп ---------- */
-  function gpsFresh() { return performance.now() - lastFix < 3000; }
+    function say(text) { msg.textContent = text; }
 
-  function onGyro(x, y, z) {
-    gyroMag = Math.sqrt(x * x + y * y + z * z);
-    if (have.gyro !== 1) { have.gyro = 1; renderPills(); refreshStatus(); }
-  }
-
-  function onLinear(ax, ay, az, t) {
-    if (have.acc !== 1) { have.acc = 1; renderPills(); refreshStatus(); }
-    if (!Rm) return;
-    var dt = lastA ? Math.min((t - lastA) / 1000, 0.1) : 0;
-    lastA = t;
-    if (!dt) return;
-
-    // ускорение телефона → стороны света
-    var ae = Rm[0][0] * ax + Rm[0][1] * ay + Rm[0][2] * az;
-    var an = Rm[1][0] * ax + Rm[1][1] * ay + Rm[1][2] * az;
-
-    // сглаживание дрожи, постоянная времени 0.08 с
-    var k = 1 - Math.exp(-dt / 0.08);
-    fe += (ae - fe) * k; fn += (an - fn) * k;
-    var m = Math.sqrt(fe * fe + fn * fn);
-    accMag = m;
-
-    // мёртвая зона: мелкие наклоны не превращаются в ложный разгон;
-    // быстрый поворот телефона (больше 0.6 рад/с) не считается ускорением вовсе
-    var th = 0.18, turning = gyroMag > 0.6;
-    var gain = (m > th && !turning) ? (m - th) / m : 0;
-    ve += fe * gain * dt; vn += fn * gain * dt;
-
-    quiet = (m < 0.25 && gyroMag < 0.08) ? quiet + dt : 0;
-    var decay;
-    if (gpsFresh()) decay = Math.exp(-dt / 120);          // GPS рядом: держим ход, остальное сделает поправка
-    else if (quiet > 1.0) decay = Math.exp(-dt / 0.4);    // без GPS покой неотличим от постоянной скорости
-    else decay = Math.exp(-dt / 60);
-    ve *= decay; vn *= decay;
-    speed = Math.sqrt(ve * ve + vn * vn);
-  }
-
-  /* ---------- события (запасной путь и iOS) ---------- */
-  function onOrientEv(ev) {
-    if (ev.alpha == null || ev.beta == null || ev.gamma == null) return;
-    var al = ev.alpha, abs = ev.type === "deviceorientationabsolute" || ev.absolute === true;
-    if (ev.webkitCompassHeading != null) { al = 360 - ev.webkitCompassHeading; abs = true; }
-    if (abs) { absSeen = true; setEuler(al, ev.beta, ev.gamma, true); }
-    else if (!absSeen) setEuler(al, ev.beta, ev.gamma, false);   // относительная ориентация, без севера
-  }
-
-  function onMotion(ev) {
-    var t = performance.now(), rr = ev.rotationRate;
-    if (rr && rr.alpha != null) onGyro(rr.alpha * D, rr.beta * D, rr.gamma * D);
-    var a = ev.acceleration, ag = ev.accelerationIncludingGravity;
-    if (a && a.x != null) onLinear(a.x, a.y, a.z, t);
-    else if (ag && ag.x != null && Rm) onLinear(ag.x - 9.81 * Rm[2][0], ag.y - 9.81 * Rm[2][1], ag.z - 9.81 * Rm[2][2], t);
-  }
-
-  function fallbackEvents() {
-    if (eventsOn) return;
-    stopSensors();
-    eventsOn = true;
-    window.addEventListener("deviceorientationabsolute", onOrientEv, true);
-    window.addEventListener("deviceorientation", onOrientEv, true);
-    window.addEventListener("devicemotion", onMotion, true);
-  }
-
-  /* ---------- Generic Sensor API (Chrome на Android) ---------- */
-  function mk(key, Ctor, opts, onRead, critical) {
-    function bad() {
-      if (critical) { fallbackEvents(); return; }
-      if (have[key] <= 0) { have[key] = -1; renderPills(); refreshStatus(); }
+    // --- Ориентация ---
+    function setR(m) {
+        Rm = m;
+        if (badge.textContent !== "Работает") {
+            badge.textContent = "Работает"; badge.style.color = "var(--accent)"; badge.style.borderColor = "var(--accent)";
+        }
     }
-    try {
-      var sn = new Ctor(opts);
-      sensors.push(sn);
-      sn.addEventListener("reading", function () { onRead(sn); });
-      sn.addEventListener("error", function () { try { sn.stop(); } catch (err) {} bad(); });
-      sn.start();
-    } catch (err) { bad(); }
-  }
 
-  function startMotion() {
-    var generic = ("AbsoluteOrientationSensor" in window) && ("LinearAccelerationSensor" in window);
-    if (!generic) { fallbackEvents(); }
-    else {
-      mk("mag", AbsoluteOrientationSensor, { frequency: 50, referenceFrame: "device" }, function (sn) { setQuat(sn.quaternion); }, true);
-      mk("acc", LinearAccelerationSensor, { frequency: 50, referenceFrame: "device" }, function (sn) {
-        if (sn.x != null) onLinear(sn.x, sn.y, sn.z, performance.now());
-      }, true);
-      if ("Gyroscope" in window) mk("gyro", Gyroscope, { frequency: 50 }, function (sn) { if (sn.x != null) onGyro(sn.x, sn.y, sn.z); }, false);
-      else { have.gyro = -1; renderPills(); }
+    function setQuat(q) {
+        if (!q) return;
+        var x = q[0], y = q[1], z = q[2], w = q[3];
+        var xx = x*x, yy = y*y, zz = z*z, xy = x*y, xz = x*z, yz = y*z, xw = x*w, yw = y*w, zw = z*w;
+        setR([
+            [1 - 2*(yy + zz), 2*(xy - zw), 2*(xz + yw)],
+            [2*(xy + zw), 1 - 2*(xx + zz), 2*(yz - xw)],
+            [2*(xz - yw), 2*(yz + xw), 1 - 2*(xx + yy)]
+        ]);
     }
-    waitTimer = setTimeout(function () {
-      if (have.acc !== 1) have.acc = -1;
-      if (have.mag !== 1) have.mag = -1;
-      if (have.gyro === 0) have.gyro = -1;
-      renderPills(); refreshStatus();
-    }, 3500);
-  }
 
-  /* ---------- GPS ---------- */
-  function onFix(p) {
-    var c = p.coords;
-    if (c.accuracy > 50) { say("GPS неточный (±" + Math.round(c.accuracy) + " м), жду лучшего сигнала…", true); return; }
-    if (have.gps !== 1) { have.gps = 1; renderPills(); refreshStatus(); }
-    var sp = c.speed;
-    if (sp == null || isNaN(sp)) return;
-    lastFix = performance.now();
-    var K = have.acc === 1 ? 0.7 : 1;
-    if (sp < 0.6) { ve = 0; vn = 0; }
-    else {
-      var gve, gvn;
-      if (c.heading != null && !isNaN(c.heading)) { gve = sp * Math.sin(c.heading * D); gvn = sp * Math.cos(c.heading * D); }
-      else {
-        var vm = Math.sqrt(ve * ve + vn * vn);
-        if (vm > 0.5) { gve = ve / vm * sp; gvn = vn / vm * sp; }
-        else { gve = sp * Math.sin(heading * D); gvn = sp * Math.cos(heading * D); }
-      }
-      ve += K * (gve - ve); vn += K * (gvn - vn);
+    function setEuler(aDeg, bDeg, gDeg) {
+        var a = aDeg * D, b = bDeg * D, g = gDeg * D;
+        var cA = Math.cos(a), sA = Math.sin(a), cB = Math.cos(b), sB = Math.sin(b), cG = Math.cos(g), sG = Math.sin(g);
+        setR([
+            [cA*cG - sA*sB*sG, -cB*sA, cG*sA*sB + cA*sG],
+            [cG*sA + cA*sB*sG, cA*cB, sA*sG - cA*cG*sB],
+            [-cB*sG, sB, cB*cG]
+        ]);
     }
-    speed = Math.sqrt(ve * ve + vn * vn);
-  }
 
-  function onGpsErr(err) {
-    if (err.code === 1 || err.code === 2) { have.gps = -1; renderPills(); refreshStatus(); }
-    else say("GPS пока не ответил, продолжаю искать спутники…", true);
-  }
-
-  function startGps() {
-    if (!navigator.geolocation) { have.gps = -1; renderPills(); return; }
-    geoId = navigator.geolocation.watchPosition(onFix, onGpsErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
-  }
-
-  /* ---------- запуск ---------- */
-  async function start() {
-    stopAll(); resetMotion(); Rm = null; absSeen = false; gyroMag = 0; lastFix = 0;
-    have.acc = have.gyro = have.mag = have.gps = 0; renderPills();
-    mode = "run"; syncUi(); setBadge("Запуск", "");
-    if (!window.isSecureContext) { fail(HTTPS_MSG); return; }
-    say("Запрашиваю доступ…");
-    startGps();                         // сразу, пока жив жест нажатия
-    var reqs = [];
-    try {
-      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") reqs.push(DeviceMotionEvent.requestPermission());
-      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") reqs.push(DeviceOrientationEvent.requestPermission());
-      var res = await Promise.all(reqs);
-      if (mode !== "run") return;
-      if (res.some(function (r) { return r !== "granted"; })) {
-        have.acc = have.gyro = have.mag = -1; renderPills(); refreshStatus();
-        say("Доступ к датчикам движения запрещён. Разрешите «Датчики движения» в настройках сайта. Пока работает только GPS.", true);
-      } else startMotion();
-    } catch (err) {
-      have.acc = have.gyro = have.mag = -1; renderPills(); refreshStatus();
+    function onGyro(x, y, z) {
+        gyroMag = Math.sqrt(x*x + y*y + z*z);
     }
-    try { if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(function () {}); } catch (err) {}
-  }
 
-  /* ---------- демо ---------- */
-  function demoStep(dt) {
-    demoT += dt;
-    var t = demoT % 40, target;
-    if (t < 10) target = 60 * (t / 10);
-    else if (t < 18) target = 60 + 8 * Math.sin((t - 10) * 0.9);
-    else if (t < 26) target = 60 + 30 * ((t - 18) / 8);
-    else if (t < 31) target = 90 - 10 * ((t - 26) / 5);
-    else target = Math.max(0, 80 * (1 - (t - 31) / 8));
-    var ms = target / 3.6;
-    accMag = Math.abs(ms - speed) / Math.max(dt, 0.016);
-    speed += (ms - speed) * Math.min(1, dt * 4);
-    heading = (40 + 25 * Math.sin(demoT / 7) + 360) % 360;
-  }
+    // --- ЯДРО: Интеграция в мировых координатах ---
+    function onLinear(ax, ay, az, t) {
+        if (!Rm) return; 
+        
+        var dt = lastA ? Math.min((t - lastA) / 1000, 0.1) : 0;
+        lastA = t;
+        if (!dt) return;
 
-  /* ---------- отрисовка ---------- */
-  var prev = performance.now();
-  function frame(now) {
-    var dt = Math.min((now - prev) / 1000, 0.1); prev = now;
-    if (mode === "demo") demoStep(dt);
-    if (mode === "run" && !have.acc && gpsFresh() === false && have.gps === 1 && !Rm) { /* ждём первых данных */ }
-    var kmh = mode === "off" ? 0 : speed * 3.6;
-    shown += (kmh - shown) * Math.min(1, dt * 10);
-    var c = Math.max(0, Math.min(MAX, shown));
-    needle.setAttribute("transform", "rotate(" + (A0 + SWEEP * c / MAX + 90) + " " + CX + " " + CY + ")");
-    fill.setAttribute("stroke-dasharray", (c / MAX * 100) + " 100");
-    digits.textContent = String(Math.round(shown));
-    if (shown > peak) peak = shown;
-    peakEl.textContent = String(Math.round(peak));
-    accEl.textContent = accMag.toFixed(1);
-    hdgEl.textContent = Math.round(heading) + "°";
-    sideEl.textContent = SIDES[Math.round(heading / 45) % 8];
+        // 1. Переводим сырое ускорение в Землю (Восток / Север)
+        // Нам не надо ничего "выпрямлять" тут. Мы просто смотрим, куда ускоряется телефон в мире.
+        var aEast  = Rm[0][0] * ax + Rm[0][1] * ay + Rm[0][2] * az; 
+        var aNorth = Rm[1][0] * ax + Rm[1][1] * ay + Rm[1][2] * az; 
+        // Ось Z (гравитация) здесь просто не участвует.
+
+        // 2. Сглаживаем (убираем вибрации)
+        var k = 1 - Math.exp(-dt / 0.1);
+        fe += (aEast - fe) * k;
+        fn += (aNorth - fn) * k;
+        
+        var planarAcc = Math.sqrt(fe*fe + fn*fn);
+
+        // 3. Интегрируем (только если не крутим телефон в руках)
+        var isSpinning = gyroMag > 1.2;
+        if (planarAcc > 0.15 && !isSpinning) {
+            var gain = (planarAcc - 0.15) / planarAcc;
+            ve += fe * gain * dt; 
+            vn += fn * gain * dt; 
+        }
+
+        // 4. Утечка (сопротивление)
+        var decay = Math.pow(0.99, dt * 60); 
+        ve *= decay;
+        vn *= decay;
+    }
+
+    // --- КАЛИБРОВКА (Фиксируем вектор Вперед) ---
+    function calibrateZero() {
+        if (!Rm) { say("Датчики не готовы.", true); return; }
+        
+        // Запоминаем, куда смотрит ось Y телефона (условно "вперед") в мировых координатах.
+        // Rm[1] — это вторая строка матрицы, то есть вектор оси Y.
+        Fx = Rm[1][0]; // Компонента на Восток
+        Fy = Rm[1][1]; // Компонента на Север
+        
+        ve = 0; vn = 0; fe = 0; fn = 0;
+        say("0° зафиксирован! Теперь наклоны не влияют на спидометр.");
+    }
+
+    // --- УПРАВЛЕНИЕ ---
+    async function start() {
+        if (mode === "run") {
+            mode = "off"; badge.textContent = "Выкл."; badge.style.color = "var(--muted)"; badge.style.borderColor = "var(--line)";
+            $("start").textContent = "Старт";
+            for (var i = 0; i < sensors.length; i++) { try { sensors[i].stop(); } catch(e){} }
+            sensors = [];
+            window.removeEventListener("deviceorientation", onOrientEv, true);
+            window.removeEventListener("devicemotion", onMotion, true);
+            say("Остановлено."); return;
+        }
+        
+        mode = "run"; $("start").textContent = "Стоп";
+        say("Запрашиваю доступ...");
+        Rm = null; Fx = 0; Fy = 0; ve = 0; vn = 0;
+
+        try {
+            if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+                await DeviceMotionEvent.requestPermission();
+            }
+            if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+                await DeviceOrientationEvent.requestPermission();
+            }
+            
+            if ("AbsoluteOrientationSensor" in window) {
+                var orient = new AbsoluteOrientationSensor({ frequency: 50 });
+                orient.addEventListener("reading", function() { setQuat(orient.quaternion); });
+                orient.start(); sensors.push(orient);
+            } else {
+                window.addEventListener("deviceorientationabsolute", onOrientEv, true);
+                window.addEventListener("deviceorientation", onOrientEv, true);
+            }
+
+            if ("LinearAccelerationSensor" in window) {
+                var acc = new LinearAccelerationSensor({ frequency: 50 });
+                acc.addEventListener("reading", function() { onLinear(acc.x, acc.y, acc.z, performance.now()); });
+                acc.start(); sensors.push(acc);
+            } else {
+                window.addEventListener("devicemotion", onMotion, true);
+            }
+
+            if ("Gyroscope" in window) {
+                var gyro = new Gyroscope({ frequency: 50 });
+                gyro.addEventListener("reading", function() { onGyro(gyro.x, gyro.y, gyro.z); });
+                gyro.start(); sensors.push(gyro);
+            }
+            say("Датчики активны. Нажмите «Установить 0°».");
+        } catch(e) { say("Ошибка доступа к датчикам."); }
+    }
+
+    function onOrientEv(ev) { if (ev.alpha != null) setEuler(ev.alpha, ev.beta, ev.gamma); }
+    function onMotion(ev) {
+        if (ev.rotationRate && ev.rotationRate.alpha != null) onGyro(ev.rotationRate.alpha, ev.rotationRate.beta, ev.rotationRate.gamma);
+        if (ev.acceleration && ev.acceleration.x != null) onLinear(ev.acceleration.x, ev.acceleration.y, ev.acceleration.z, performance.now());
+    }
+
+    // --- Отрисовка и ПРОЕКЦИЯ ВЫХОДНЫХ ДАННЫХ ---
+    var prev = performance.now();
+    function frame(now) {
+        var dt = Math.min((now - prev) / 1000, 0.1); prev = now;
+
+        // Вот тут происходит магия:
+        // Мы берем мировую скорость (ve, vn) и проецируем её на зафиксированный вектор ВПЕРЕД (Fx, Fy).
+        // Это скалярное произведение. Оно дает нам скорость строго вдоль оси машины.
+        var vForward = (ve * Fx) + (vn * Fy);
+        speed = Math.abs(vForward);
+
+        var kmh = mode === "off" ? 0 : speed * 3.6;
+        shown += (kmh - shown) * Math.min(1, dt * 10);
+        var c = Math.max(0, Math.min(MAX, shown));
+        
+        needle.setAttribute("transform", "rotate(" + (A0 + SWEEP * c / MAX + 90) + " " + CX + " " + CY + ")");
+        fill.setAttribute("stroke-dasharray", (c / MAX * 100) + " 100");
+        digits.textContent = String(Math.round(shown));
+        
+        requestAnimationFrame(frame);
+    }
     requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
 
-  /* ---------- кнопки ---------- */
-  $("start").addEventListener("click", function () {
-    if (mode === "run") {
-      stopAll(); mode = "off"; syncUi(); setBadge("Выкл.", "");
-      have.acc = have.gyro = have.mag = have.gps = 0; renderPills();
-      say("Остановлено."); return;
-    }
-    start();
-  });
+    $("start").addEventListener("click", start);
+    $("calibrate").addEventListener("click", calibrateZero);
 
-  $("demo").addEventListener("click", function () {
-    if (mode === "demo") {
-      mode = "off"; syncUi(); setBadge("Выкл.", "");
-      have.acc = have.gyro = have.mag = have.gps = 0; renderPills();
-      say("Демо остановлено."); return;
-    }
-    stopAll(); resetMotion(); mode = "demo"; syncUi();
-    have.acc = have.gyro = have.mag = have.gps = 1; renderPills();
-    setBadge("Демо", "demo");
-    say("Демо: выдуманная поездка, датчики не используются.");
-  });
-
-  $("reset").addEventListener("click", function () {
-    resetMotion(); shown = 0;
-    say(mode === "run" ? "Скорость обнулена. Держите телефон неподвижно пару секунд." : "Обнулено.");
-  });
 })();
 </script>
 </body>
