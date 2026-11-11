@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Инерциальный Спидометр</title>
+    <title>Инерциальный Спидометр V3</title>
     <style>
         :root { --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa; --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a; }
         body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; padding: 16px; margin: 0; display: flex; justify-content: center; }
@@ -30,7 +30,7 @@
 </head>
 <body>
 <div class="wrap">
-    <header><h1>Трекер</h1><span id="badge" class="badge">Выкл.</span></header>
+    <header><h1>Трекер V3</h1><span id="badge" class="badge">Выкл.</span></header>
     <div class="gauge"><svg id="svg" viewBox="0 0 300 268"></svg></div>
     <div class="row">
         <button id="start" class="primary">Старт</button>
@@ -75,52 +75,55 @@
     var $ = function(id) { return document.getElementById(id); };
     var badge = $("badge"), msg = $("msg");
     
-    var Rm = null;          // Текущая матрица поворота
-    var Fx = 0, Fy = 0;     // Вектор "Вперед" машины (зафиксированный при 0°)
+    var Rm = null;          
+    var Fx = 0, Fy = 0;     
     
-    var ve = 0, vn = 0;     // Скорость в Земле (Восток, Север)
-    var speed = 0, shown = 0, gyroMag = 0;
-    var fe = 0, fn = 0;     
+    // Этап 1: Фильтрация гравитации (Low-pass)
+    var gravX = 0, gravY = 0, gravZ = 0;
+    var ALPHA = 0.8; // Константа фильтра (чем ближе к 1, тем сильнее сглаживание)
+
+    // Этап 2: Адаптивный порог шума
+    var accHistory = [];
+    var HISTORY_SIZE = 30;
+    
+    // Этап 3: ZUPT
+    var gyroHistory = [];
+    var ZUPT_VAR_THRESHOLD = 0.5;
+    var ZUPT_GYRO_THRESHOLD = 1.0;
+
+    // Интегратор с утечкой
+    var ve = 0, vn = 0;     
+    var speed = 0, shown = 0;
     var lastA = 0;
     var mode = "off";       
     var sensors = [];
 
     function say(text) { msg.textContent = text; }
 
-    // --- Ориентация ---
-    function setR(m) {
-        Rm = m;
-        if (badge.textContent !== "Работает") {
-            badge.textContent = "Работает"; badge.style.color = "var(--accent)"; badge.style.borderColor = "var(--accent)";
-        }
-    }
-
+    function setR(m) { Rm = m; if (badge.textContent !== "Работает") { badge.textContent = "Работает"; badge.style.color = "var(--accent)"; badge.style.borderColor = "var(--accent)"; } }
     function setQuat(q) {
         if (!q) return;
         var x = q[0], y = q[1], z = q[2], w = q[3];
         var xx = x*x, yy = y*y, zz = z*z, xy = x*y, xz = x*z, yz = y*z, xw = x*w, yw = y*w, zw = z*w;
-        setR([
-            [1 - 2*(yy + zz), 2*(xy - zw), 2*(xz + yw)],
-            [2*(xy + zw), 1 - 2*(xx + zz), 2*(yz - xw)],
-            [2*(xz - yw), 2*(yz + xw), 1 - 2*(xx + yy)]
-        ]);
+        setR([[1 - 2*(yy + zz), 2*(xy - zw), 2*(xz + yw)],
+              [2*(xy + zw), 1 - 2*(xx + zz), 2*(yz - xw)],
+              [2*(xz - yw), 2*(yz + xw), 1 - 2*(xx + yy)]]);
     }
-
     function setEuler(aDeg, bDeg, gDeg) {
         var a = aDeg * D, b = bDeg * D, g = gDeg * D;
         var cA = Math.cos(a), sA = Math.sin(a), cB = Math.cos(b), sB = Math.sin(b), cG = Math.cos(g), sG = Math.sin(g);
-        setR([
-            [cA*cG - sA*sB*sG, -cB*sA, cG*sA*sB + cA*sG],
-            [cG*sA + cA*sB*sG, cA*cB, sA*sG - cA*cG*sB],
-            [-cB*sG, sB, cB*cG]
-        ]);
+        setR([[cA*cG - sA*sB*sG, -cB*sA, cG*sA*sB + cA*sG],
+              [cG*sA + cA*sB*sG, cA*cB, sA*sG - cA*cG*sB],
+              [-cB*sG, sB, cB*cG]]);
     }
 
     function onGyro(x, y, z) {
-        gyroMag = Math.sqrt(x*x + y*y + z*z);
+        var mag = Math.sqrt(x*x + y*y + z*z);
+        gyroHistory.push(mag);
+        if (gyroHistory.length > HISTORY_SIZE) gyroHistory.shift();
     }
 
-    // --- ЯДРО: Интеграция в мировых координатах ---
+    // --- ЯДРО: Три этапа нормализации + Интеграция ---
     function onLinear(ax, ay, az, t) {
         if (!Rm) return; 
         
@@ -128,44 +131,80 @@
         lastA = t;
         if (!dt) return;
 
-        // 1. Переводим сырое ускорение в Землю (Восток / Север)
-        // Нам не надо ничего "выпрямлять" тут. Мы просто смотрим, куда ускоряется телефон в мире.
-        var aEast  = Rm[0][0] * ax + Rm[0][1] * ay + Rm[0][2] * az; 
-        var aNorth = Rm[1][0] * ax + Rm[1][1] * ay + Rm[1][2] * az; 
-        // Ось Z (гравитация) здесь просто не участвует.
+        // ЭТАП 1: Комплементарный фильтр (High-pass для линейного ускорения)
+        gravX = ALPHA * gravX + (1 - ALPHA) * ax;
+        gravY = ALPHA * gravY + (1 - ALPHA) * ay;
+        gravZ = ALPHA * gravZ + (1 - ALPHA) * az;
 
-        // 2. Сглаживаем (убираем вибрации)
-        var k = 1 - Math.exp(-dt / 0.1);
-        fe += (aEast - fe) * k;
-        fn += (aNorth - fn) * k;
-        
-        var planarAcc = Math.sqrt(fe*fe + fn*fn);
+        var linX = ax - gravX;
+        var linY = ay - gravY;
+        // linZ мы игнорируем, так как нас интересует только плоскость.
 
-        // 3. Интегрируем (только если не крутим телефон в руках)
-        var isSpinning = gyroMag > 1.2;
-        if (planarAcc > 0.15 && !isSpinning) {
-            var gain = (planarAcc - 0.15) / planarAcc;
-            ve += fe * gain * dt; 
-            vn += fn * gain * dt; 
+        // Проекция на оси машины
+        var aEast = Rm[0][0]*linX + Rm[0][1]*linY + Rm[0][2]*linZ;
+        var aNorth = Rm[1][0]*linX + Rm[1][1]*linY + Rm[1][2]*linZ;
+        var ae = aEast * Fx + aNorth * Fy; 
+        var an = aEast * (-Fy) + aNorth * Fx; 
+
+        // ЭТАП 2: Адаптивный порог (Deadband)
+        var planarAcc = Math.sqrt(ae*ae + an*an);
+        accHistory.push(planarAcc);
+        if (accHistory.length > HISTORY_SIZE) accHistory.shift();
+
+        var threshold = 0.15; // базовый
+        if (accHistory.length >= HISTORY_SIZE) {
+            var mean = accHistory.reduce((a, b) => a + b, 0) / accHistory.length;
+            var variance = accHistory.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / accHistory.length;
+            var std = Math.sqrt(variance);
+            threshold = Math.max(0.08, Math.min(0.35, 2.0 * std)); // 2 сигмы
         }
 
-        // 4. Утечка (сопротивление)
+        // ЭТАП 3: ZUPT (Детектор покоя)
+        var isZUPT = false;
+        if (accHistory.length >= HISTORY_SIZE && gyroHistory.length >= HISTORY_SIZE) {
+            var accMean = accHistory.reduce((a, b) => a + b, 0) / accHistory.length;
+            var accVar = accHistory.reduce((a, b) => a + Math.pow(b - accMean, 2), 0) / accHistory.length;
+            
+            var gyrMean = gyroHistory.reduce((a, b) => a + b, 0) / gyroHistory.length;
+            var gyrEnergy = Math.sqrt(gyroHistory.reduce((a, b) => a + b*b, 0) / gyroHistory.length);
+
+            if (accVar < ZUPT_VAR_THRESHOLD && gyrEnergy < ZUPT_GYRO_THRESHOLD) {
+                isZUPT = true;
+            }
+        }
+
+        // ИНТЕГРАЦИЯ (только если не покой и ускорение выше шума)
+        if (!isZUPT && planarAcc > threshold) {
+            var gain = (planarAcc - threshold) / planarAcc;
+            ve += ae * gain * dt;
+            vn += an * gain * dt;
+        }
+
+        // Утечка (Leaky Integrator)
         var decay = Math.pow(0.99, dt * 60); 
         ve *= decay;
         vn *= decay;
+
+        // Жесткое обнуление при ZUPT
+        if (isZUPT) {
+            ve = 0;
+            vn = 0;
+        }
     }
 
-    // --- КАЛИБРОВКА (Фиксируем вектор Вперед) ---
+    // --- КАЛИБРОВКА ---
     function calibrateZero() {
         if (!Rm) { say("Датчики не готовы.", true); return; }
         
-        // Запоминаем, куда смотрит ось Y телефона (условно "вперед") в мировых координатах.
-        // Rm[1] — это вторая строка матрицы, то есть вектор оси Y.
-        Fx = Rm[1][0]; // Компонента на Восток
-        Fy = Rm[1][1]; // Компонента на Север
+        Fx = Rm[1][0]; 
+        Fy = Rm[1][1]; 
         
-        ve = 0; vn = 0; fe = 0; fn = 0;
-        say("0° зафиксирован! Теперь наклоны не влияют на спидометр.");
+        ve = 0; vn = 0; 
+        gravX = 0; gravY = 0; gravZ = 0;
+        accHistory = [];
+        gyroHistory = [];
+        
+        say("0° зафиксирован. Нормализация включена.");
     }
 
     // --- УПРАВЛЕНИЕ ---
@@ -183,6 +222,8 @@
         mode = "run"; $("start").textContent = "Стоп";
         say("Запрашиваю доступ...");
         Rm = null; Fx = 0; Fy = 0; ve = 0; vn = 0;
+        gravX = 0; gravY = 0; gravZ = 0;
+        accHistory = []; gyroHistory = [];
 
         try {
             if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
@@ -224,17 +265,12 @@
         if (ev.acceleration && ev.acceleration.x != null) onLinear(ev.acceleration.x, ev.acceleration.y, ev.acceleration.z, performance.now());
     }
 
-    // --- Отрисовка и ПРОЕКЦИЯ ВЫХОДНЫХ ДАННЫХ ---
+    // --- Отрисовка ---
     var prev = performance.now();
     function frame(now) {
         var dt = Math.min((now - prev) / 1000, 0.1); prev = now;
 
-        // Вот тут происходит магия:
-        // Мы берем мировую скорость (ve, vn) и проецируем её на зафиксированный вектор ВПЕРЕД (Fx, Fy).
-        // Это скалярное произведение. Оно дает нам скорость строго вдоль оси машины.
-        var vForward = (ve * Fx) + (vn * Fy);
-        speed = Math.abs(vForward);
-
+        speed = Math.abs(ve);
         var kmh = mode === "off" ? 0 : speed * 3.6;
         shown += (kmh - shown) * Math.min(1, dt * 10);
         var c = Math.max(0, Math.min(MAX, shown));
