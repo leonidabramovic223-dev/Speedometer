@@ -1,87 +1,125 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Спидометр + Карта</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<title>Спидометр</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=Inter:wght@400;500;600&display=swap">
 <style>
+/* Layout: one centered column, tabs (speedometer / map), shared controls below */
 :root {
-  --bg:#eceff1; --panel:#fff; --fg:#12181d; --muted:#5b6770;
-  --line:#d3d9dd; --accent:#0b8f9c; --needle:#d6342a; --warn:#b26a00;
-  --font-num:"Barlow Condensed","Arial Narrow",sans-serif;
-  --font-text:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg: #eceff1;
+  --panel: #ffffff;
+  --fg: #12181d;
+  --muted: #5b6770;
+  --line: #d3d9dd;
+  --accent: #0b8f9c;
+  --needle: #d6342a;
+  --warn: #b26a00;
+  --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-@media (prefers-color-scheme:dark){:root{--bg:#0e1418;--panel:#162026;--fg:#e8eef1;--muted:#8fa0aa;--line:#2a3943;--accent:#42d0db;--needle:#ff5a4d;--warn:#f0b24a;color-scheme:dark}}
-[hidden]{display:none!important}
-*{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:var(--font-text);font-size:15px;line-height:1.45;margin:0;padding:20px max(16px,env(safe-area-inset-left,0px)) 20px max(16px,env(safe-area-inset-right,0px))}
-.wrap{max-width:440px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
-.panel{display:flex;flex-direction:column;gap:16px}
-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-h1{font-family:var(--font-num);font-weight:600;font-size:1.5rem;letter-spacing:.06em;text-transform:uppercase;margin:0}
-.badge{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);padding:3px 9px;border-radius:99px}
-.badge.live{color:var(--accent);border-color:var(--accent)}
-.badge.pause{color:var(--warn);border-color:var(--warn)}
-.tabs{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px}
-.tabs button{flex:1;border:0;background:transparent;padding:9px 12px;border-radius:9px;color:var(--muted);font:inherit;cursor:pointer}
-.tabs button[aria-selected="true"]{background:var(--accent);color:var(--bg)}
-.gauge{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:8px 8px 6px}
-svg{display:block;width:100%;height:auto}
-.track{fill:none;stroke:var(--line);stroke-width:12;stroke-linecap:round}
-.fill{fill:none;stroke:var(--accent);stroke-width:12;stroke-linecap:round}
-.tick{stroke:var(--muted);stroke-width:1.5}
-.tick.major{stroke:var(--fg);stroke-width:2.5}
-.lbl{fill:var(--muted);font-family:var(--font-num);font-size:17px;text-anchor:middle;dominant-baseline:middle}
-.needle{stroke:var(--needle);stroke-width:3.5;stroke-linecap:round}
-.hub{fill:var(--panel);stroke:var(--needle);stroke-width:3}
-.digits{font-family:var(--font-num);font-weight:600;font-size:64px;fill:var(--fg);text-anchor:middle;font-variant-numeric:tabular-nums}
-.unit{font-family:var(--font-text);font-size:13px;letter-spacing:.12em;fill:var(--muted);text-anchor:middle;text-transform:uppercase}
-.pills{display:flex;flex-wrap:wrap;gap:8px}
-.pill{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);border:1px solid var(--line);background:var(--panel);padding:4px 10px;border-radius:99px}
-.pill i{width:8px;height:8px;border-radius:50%;background:var(--line)}
-.pill.ok{color:var(--fg)}.pill.ok i{background:var(--accent)}
-.pill.bad{color:var(--warn);border-color:var(--warn)}.pill.bad i{background:var(--warn)}
-.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
-.stat span{display:block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.stat b{font-family:var(--font-num);font-weight:600;font-size:1.6rem;font-variant-numeric:tabular-nums}
-.stat small{font-size:.8rem;color:var(--muted);font-weight:400}
-#map{width:100%;aspect-ratio:1/1;border-radius:12px;background:var(--panel)}
-.row{display:flex;flex-wrap:wrap;gap:10px}
-button{font:inherit;font-weight:600;cursor:pointer;flex:1 1 100px;padding:13px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
-button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
-button.on{border-color:var(--accent);color:var(--accent)}
-button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-#msg{min-height:1.4em;margin:0;color:var(--muted);font-size:.9rem}
-#msg.err{color:var(--warn)}
-.note{margin:0;font-size:.82rem;color:var(--muted)}
-#diag{font-variant-numeric:tabular-nums;min-height:1.3em}
-.coord-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:4px}
-.coord-row label{flex:1 1 110px;font-size:.78rem;color:var(--muted);display:flex;flex-direction:column;gap:4px}
-.coord-row input{font:inherit;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--fg);width:100%}
-.coord-row button{flex:0 0 auto;padding:9px 12px}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa;
+    --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa;
+  --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-text); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px;
+}
+.wrap { max-width: 420px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.panel { display: flex; flex-direction: column; gap: 16px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--font-num); font-weight: 600; font-size: 1.5rem; letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+.badge { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); padding: 3px 9px; border-radius: 99px; }
+.badge.live { color: var(--accent); border-color: var(--accent); }
+.badge.demo { color: var(--warn); border-color: var(--warn); }
+.tabs { display: flex; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+.tabs button { flex: 1; border: 0; background: transparent; padding: 9px 12px; border-radius: 9px; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--bg); }
+.gauge { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 8px 8px 6px; }
+svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.track { fill: none; stroke: var(--line); stroke-width: 12; stroke-linecap: round; }
+.fill { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; }
+.tick { stroke: var(--muted); stroke-width: 1.5; }
+.tick.major { stroke: var(--fg); stroke-width: 2.5; }
+.lbl { fill: var(--muted); font-family: var(--font-num); font-size: 17px; text-anchor: middle; dominant-baseline: middle; }
+.needle { stroke: var(--needle); stroke-width: 3.5; stroke-linecap: round; }
+.hub { fill: var(--panel); stroke: var(--needle); stroke-width: 3; }
+.digits { font-family: var(--font-num); font-weight: 600; font-size: 64px; fill: var(--fg); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.digits.rev { fill: var(--warn); }
+.unit { font-family: var(--font-text); font-size: 13px; letter-spacing: .12em; fill: var(--muted); text-anchor: middle; text-transform: uppercase; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: .78rem; color: var(--muted); border: 1px solid var(--line); background: var(--panel); padding: 4px 10px; border-radius: 99px; }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.pill.ok { color: var(--fg); }
+.pill.ok i { background: var(--accent); }
+.pill.bad { color: var(--warn); border-color: var(--warn); }
+.pill.bad i { background: var(--warn); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.stat span { display: block; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stat b { font-family: var(--font-num); font-weight: 600; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.stat small { font-size: .8rem; color: var(--muted); font-weight: 400; }
+.mapbox { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 8px; }
+canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 1 / 1; border-radius: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 10px; }
+button {
+  font: inherit; font-weight: 600; cursor: pointer; flex: 1 1 120px;
+  padding: 13px 16px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg);
+}
+button.small { flex: 0 0 56px; padding-inline: 0; font-size: 1.2rem; line-height: 1; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+button.on { border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: .88rem; color: var(--fg); }
+.check input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: none; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); }
+#msg { min-height: 1.4em; margin: 0; color: var(--muted); font-size: .9rem; }
+#msg.err { color: var(--warn); }
+.note { margin: 0; font-size: .82rem; color: var(--muted); }
+#diag { font-variant-numeric: tabular-nums; min-height: 1.3em; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header><h1>Спидометр</h1><span id="badge" class="badge">Выкл.</span></header>
+  <header>
+    <h1>Спидометр</h1>
+    <span id="badge" class="badge">Выкл.</span>
+  </header>
 
-  <div class="tabs" role="tablist">
-    <button id="tab-speed" role="tab" aria-selected="true">Спидометр</button>
-    <button id="tab-map" role="tab" aria-selected="false">Карта</button>
+  <div class="tabs" role="tablist" aria-label="Разделы">
+    <button id="tab-speed" role="tab" type="button" aria-selected="true" aria-controls="panel-speed">Спидометр</button>
+    <button id="tab-map" role="tab" type="button" aria-selected="false" aria-controls="panel-map">Карта</button>
   </div>
 
-  <section id="panel-speed" class="panel">
-    <div class="gauge"><svg id="svg" viewBox="0 0 300 268" role="img" aria-label="Спидометр 0–120 км/ч"></svg></div>
-    <div class="pills">
+  <section id="panel-speed" class="panel" role="tabpanel" aria-labelledby="tab-speed">
+    <div class="gauge">
+      <svg id="svg" viewBox="0 0 300 268" role="img" aria-label="Стрелочный спидометр, шкала 0–120 км/ч"></svg>
+    </div>
+
+    <div class="pills" aria-label="Состояние датчиков">
       <span class="pill" id="p-acc"><i></i>Ускорение</span>
       <span class="pill" id="p-gyro"><i></i>Гироскоп</span>
       <span class="pill" id="p-ori"><i></i>Наклон</span>
       <span class="pill" id="p-mag"><i></i>Компас</span>
+      <span class="pill" id="p-gps"><i></i>GPS</span>
     </div>
+
     <div class="stats">
       <div class="stat"><span>Максимум</span><b id="peak">0</b> <small>км/ч</small></div>
       <div class="stat"><span>Курс</span><b id="hdg">—</b> <small id="side"></small></div>
@@ -89,457 +127,838 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline
     </div>
   </section>
 
-  <section id="panel-map" class="panel" hidden>
-    <div class="coord-row">
-      <label>Широта<input id="lat" type="number" step="0.000001" min="-90" max="90" placeholder="55.7558"></label>
-      <label>Долгота<input id="lon" type="number" step="0.000001" min="-180" max="180" placeholder="37.6173"></label>
-      <button id="set-pos" type="button">Задать</button>
-      <button id="gps-center" type="button">GPS</button>
-    </div>
-    <div id="map"></div>
+  <section id="panel-map" class="panel" role="tabpanel" aria-labelledby="tab-map" hidden>
+    <div class="mapbox"><canvas id="map" aria-label="Карта движения"></canvas></div>
+    <p class="note" id="mapinfo"></p>
     <div class="stats">
       <div class="stat"><span>Путь</span><b id="dist">0</b> <small id="distu">м</small></div>
       <div class="stat"><span>Курс</span><b id="hdg2">—</b></div>
       <div class="stat"><span>Точек</span><b id="npts">0</b></div>
     </div>
     <div class="row">
-      <button id="zero" type="button">0°: вперёд</button>
+      <button id="zoomout" class="small" type="button" aria-label="Отдалить">−</button>
+      <button id="zoomin" class="small" type="button" aria-label="Приблизить">+</button>
+      <button id="fit" type="button">Весь трек</button>
+    </div>
+    <div class="row">
+      <button id="up" type="button">Курс вверх</button>
       <button id="clear" type="button">Очистить трек</button>
     </div>
+    <label class="field" for="tiles"><span>Источник карты</span>
+      <select id="tiles">
+        <option value="auto">Авто: по очереди, что открывается</option>
+        <option value="osm">OpenStreetMap</option>
+        <option value="osmfr">OSM Франция</option>
+        <option value="osmde">OSM Германия</option>
+        <option value="carto">CARTO Voyager</option>
+        <option value="none">Без карты, только трек</option>
+      </select>
+    </label>
   </section>
 
   <div class="row">
-    <button id="start" class="primary" type="button">Старт</button>
-    <button id="pause" type="button" hidden>Пауза</button>
-    <button id="reset" type="button">Сброс</button>
+    <button id="start" class="primary" type="button">Датчики</button>
+    <button id="gps" type="button">GPS</button>
     <button id="demo" type="button">Демо</button>
+    <button id="reset" type="button">Стоп-ноль</button>
   </div>
 
-  <p id="msg">Нажмите «Старт». Карта загружается с внешнего зеркала (работает в РФ без VPN).</p>
+  <label class="check"><input type="checkbox" id="assist" checked><span>GPS раз в 5 секунд для координат и остановки. Точка принимается, только если скорость, направление и сдвиг совпали с датчиками (скорость в пределах 5 км/ч). Стрелка идёт по датчикам, без задержки GPS.</span></label>
+
+  <p id="msg">«Датчики»: скорость по акселерометру и гироскопу, едет вперёд и назад. «GPS»: скорость по спутникам, отдельно. Нажимайте «Стоп-ноль», когда машина стоит.</p>
   <p class="note" id="diag"></p>
-  <p class="note">Карта: данные OpenStreetMap через зеркало <code>t.co.fantastic-game.ru</code> (с резервным сервером). Покрытие — весь мир, включая Москву, Дубну и Кимры. Кнопка «GPS» делает один запрос координат только для центрирования.</p>
+  <p class="note">Телефон можно ставить под любым углом, в том числе на ребро: ось «вперёд» находится сама по первому разгону. Карта по датчикам считается по счислению пути и расходится с реальностью, GPS возвращает её на место.</p>
 </div>
 
 <script>
-(function(){
-"use strict";
+(function () {
+  var MAX = 120, CX = 150, CY = 150, RAD = 110, A0 = 135, SWEEP = 270;
+  var D = Math.PI / 180, RE = 6371000;
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("svg");
 
-/* ---------- константы ---------- */
-var MAX=120,CX=150,CY=150,RAD=110,A0=135,SWEEP=270,D=Math.PI/180,NS="http://www.w3.org/2000/svg";
-var DEADBAND=0.08,zAcc=0.04,ZUPT_MEAN=0.12,ZUPT_GYRO=0.05,TURN_GYRO=1.5,LEAK_TAU=40,WIN=40;
+  // Настройки режима датчиков (подбираются по диагностике под шкалой)
+  var DEADBAND = 0.1;       // м/с²: меньшее ускорение считается шумом
+  var zAcc = 0.04;          // м/с²: разброс ускорения в покое меньше этого («Стоп-ноль» подстраивает)
+  var ZUPT_MEAN = 0.12;     // м/с²: среднее линейное ускорение в покое меньше этого
+  var ZUPT_GYRO = 0.05;     // рад/с: вращение в покое меньше этого
+  var TURN_GYRO = 1.5;      // рад/с: при более резком вращении телефона рукой ускорение не считается
+  var LEAK_TAU = 600;       // с: медленная утечка скорости против накопления ошибки
+  var WIN = 40;             // отсчётов в окне покоя (около 0,8 с)
+  var GPS_PERIOD = 5000;    // мс: как часто GPS проверяет координаты
+  var GPS_TOL = 5 / 3.6;    // м/с: допустимое расхождение скорости с GPS, 5 км/ч
 
-/* ---------- SVG ---------- */
-var svg=document.getElementById("svg");
-function pt(deg,r){var a=deg*D;return[CX+r*Math.cos(a),CY+r*Math.sin(a)]}
-function el(n,at,txt){var x=document.createElementNS(NS,n);for(var k in at)x.setAttribute(k,at[k]);if(txt!=null)x.textContent=txt;svg.appendChild(x);return x}
-var s0=pt(A0,RAD),e0=pt(A0+SWEEP,RAD);
-var d="M "+s0[0]+" "+s0[1]+" A "+RAD+" "+RAD+" 0 1 1 "+e0[0]+" "+e0[1];
-el("path",{d:d,"class":"track"});
-var fill=el("path",{d:d,"class":"fill",pathLength:"100","stroke-dasharray":"0 100"});
-for(var v=0;v<=MAX;v+=10){var ang=A0+SWEEP*v/MAX,major=v%20===0;
-var p1=pt(ang,RAD-12),p2=pt(ang,RAD-(major?28:21));
-el("line",{x1:p1[0],y1:p1[1],x2:p2[0],y2:p2[1],"class":"tick"+(major?" major":"")});
-if(major){var pl=pt(ang,RAD-45);el("text",{x:pl[0],y:pl[1],"class":"lbl"},String(v))}}
-var needle=el("line",{x1:CX,y1:CY,x2:CX,y2:CY-(RAD-22),"class":"needle"});
-el("circle",{cx:CX,cy:CY,r:9,"class":"hub"});
-var digits=el("text",{x:CX,y:226,"class":"digits"},"0");
-el("text",{x:CX,y:248,"class":"unit"},"км/ч");
-
-/* ---------- DOM ---------- */
-var $=function(id){return document.getElementById(id)};
-var badge=$("badge"),msg=$("msg"),diag=$("diag"),peakEl=$("peak"),accEl=$("acc"),hdgEl=$("hdg"),sideEl=$("side");
-function say(t,e){msg.textContent=t;msg.className=e?"err":""}
-function setBadge(t,c){badge.textContent=t;badge.className="badge"+(c?" "+c:"")}
-
-/* ---------- математика ---------- */
-function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
-function cross(a,b){return[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
-function len(a){return Math.sqrt(dot(a,a))}
-function unit(a){var l=len(a)||1;return[a[0]/l,a[1]/l,a[2]/l]}
-function horiz(a,g){var p=dot(a,g);return[a[0]-p*g[0],a[1]-p*g[1],a[2]-p*g[2]]}
-function wrapPi(x){return((x+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI}
-
-/* ---------- состояние ---------- */
-var have={acc:0,gyro:0,ori:0,mag:0};
-var PILL={acc:$("p-acc"),gyro:$("p-gyro"),ori:$("p-ori"),mag:$("p-mag")};
-function renderPills(){for(var k in PILL)PILL[k].className="pill"+(have[k]>0?" ok":have[k]<0?" bad":"")}
-function clearHave(){have.acc=have.gyro=have.ori=have.mag=0;renderPills()}
-
-var gU=null,w=[0,0,0],lastG=0,lastLinMag=0,lastA=0,clk=0;
-var vb=[0,0,0],bb=[0,0,0],fb=[0,0,0],dirB=null;
-var accWin=[],gyroWin=[];
-var stillT=0,still=false,quietT=0,decelT=-1e9,accStd=0,gyroRms=0,gyroMag=0;
-var speed=0,shown=0,peak=0,accMag=0;
-var Rabs=null,H=0,Hinit=false,locked=false,mapRef=0;
-var posE=0,posN=0,dist=0,track=[],lastPt=null,org=null;
-var mode="off",sensors=[],eventsOn=false,waitTimer=null,demoT=0;
-var paused=false;
-
-var SIDES=["С","СВ","В","ЮВ","Ю","ЮЗ","З","СЗ"];
-var HTTPS_MSG="Откройте страницу по HTTPS (GitHub Pages подходит). На Android отдельное разрешение не нужно; на iOS нажмите кнопку, чтобы запросить доступ.";
-
-function clearTrack(){track=[];lastPt=null;posE=posN=0;dist=0}
-function resetMotion(){
-  vb=[0,0,0];bb=[0,0,0];fb=[0,0,0];dirB=null;speed=0;peak=0;accMag=0;lastA=0;
-  stillT=0;still=false;quietT=0;decelT=-1e9;accWin=[];gyroWin=[];demoT=0;paused=false;
-}
-function resetHeading(){H=0;Hinit=false;locked=false;mapRef=0;Rabs=null}
-
-function syncUi(){
-  var running=mode==="inertial"||mode==="demo";
-  $("start").textContent=running?"Стоп":"Старт";
-  $("start").className=running?"on":"primary";
-  $("pause").hidden=!running;
-  $("pause").textContent=paused?"Продолжить":"Пауза";
-  $("pause").className=paused?"on":"";
-  $("demo").textContent=mode==="demo"?"Стоп демо":"Демо";
-  $("zero").textContent=locked?"Север: компас":"0°: вперёд";
-  $("zero").className=locked?"on":"";
-}
-
-function stopSensors(){for(var i=0;i<sensors.length;i++){try{sensors[i].stop()}catch(e){}}sensors=[]}
-function stopAll(){
-  stopSensors();
-  window.removeEventListener("deviceorientationabsolute",onOrientEv,true);
-  window.removeEventListener("deviceorientation",onOrientEv,true);
-  window.removeEventListener("devicemotion",onMotion,true);
-  eventsOn=false;clearTimeout(waitTimer);
-}
-function goOff(t,e){stopAll();mode="off";syncUi();setBadge("Выкл.","");clearHave();diag.textContent="";say(t,e)}
-
-function refreshStatus(){
-  if(mode!=="inertial")return;
-  if(have.acc>0&&have.ori>0)setBadge(paused?"Пауза":"Датчики",paused?"pause":"live");
-  var t,bad=true;
-  if(have.acc<0||have.ori<0)t="Датчик ускорения недоступен. Проверьте HTTPS; на iOS разрешите «Датчики движения».";
-  else if(have.acc>0&&have.ori>0){
-    t=paused?"Пауза: скорость заморожена. Нажмите «Продолжить», чтобы ехать дальше.":"Датчики работают. Постойте неподвижно 1–2 с, затем трогайтесь.";
-    if(have.gyro<0)t+=" Гироскопа нет: вращение телефона не учитывается.";
-    bad=have.gyro<0;
-  }else{t="Запускаю датчики…";bad=false}
-  say(t,bad);
-}
-
-/* ---------- ориентация и компас ---------- */
-function eulerToMat(aDeg,bDeg,gDeg){
-  var a=aDeg*D,b=bDeg*D,g=gDeg*D;
-  var cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
-  return[[cA*cG-sA*sB*sG,-cB*sA,cG*sA*sB+cA*sG],
-         [cG*sA+cA*sB*sG,cA*cB,sA*sG-cA*cG*sB],
-         [-cB*sG,sB,cB*cG]];
-}
-function bodyForwardFromOrientation(){
-  if(!gU)return null;
-  var fwd=horiz([0,1,0],gU);
-  if(screen.orientation&&screen.orientation.angle%180!==0)fwd=horiz([1,0,0],gU);
-  var l=len(fwd);return l>0.1?[fwd[0]/l,fwd[1]/l,fwd[2]/l]:null;
-}
-function compassHeading(){
-  if(!Rabs||!dirB)return null;
-  var m=Rabs;
-  var e=m[0][0]*dirB[0]+m[0][1]*dirB[1]+m[0][2]*dirB[2];
-  var n=m[1][0]*dirB[0]+m[1][1]*dirB[1]+m[1][2]*dirB[2];
-  if(Math.sqrt(e*e+n*n)<0.3)return null;
-  return Math.atan2(e,n);
-}
-function onOrientEv(ev){
-  if(ev.alpha==null||ev.beta==null||ev.gamma==null)return;
-  var al=ev.alpha,abs=ev.type==="deviceorientationabsolute"||ev.absolute===true;
-  if(ev.webkitCompassHeading!=null){al=360-ev.webkitCompassHeading;abs=true}
-  if(!abs)return;
-  Rabs=eulerToMat(al,ev.beta,ev.gamma);
-  if(have.mag!==1){have.mag=1;renderPills()}
-}
-
-/* ---------- ядро ---------- */
-function push(arr,x){arr.push(x);if(arr.length>WIN)arr.shift()}
-function std(arr){var m=0,i;for(i=0;i<arr.length;i++)m+=arr[i];m/=arr.length;var q=0;for(i=0;i<arr.length;i++)q+=(arr[i]-m)*(arr[i]-m);return Math.sqrt(q/arr.length)}
-function mean(arr){var m=0;for(var i=0;i<arr.length;i++)m+=arr[i];return m/arr.length}
-function rms(arr){var q=0;for(var i=0;i<arr.length;i++)q+=arr[i]*arr[i];return Math.sqrt(q/arr.length)}
-
-function onGyro(x,y,z,t){
-  w=[x,y,z];gyroMag=len(w);push(gyroWin,gyroMag);
-  if(have.gyro!==1){have.gyro=1;renderPills();refreshStatus()}
-  if(gU&&lastG){var dtg=Math.min((t-lastG)/1000,0.1);if(dtg>0){var c=cross(w,gU);gU=unit([gU[0]-c[0]*dtg,gU[1]-c[1]*dtg,gU[2]-c[2]*dtg])}}
-  lastG=t;
-}
-function onTotal(ax,ay,az){
-  var m=Math.sqrt(ax*ax+ay*ay+az*az);if(m<7||m>12)return;
-  var u=[ax/m,ay/m,az/m];
-  if(!gU){gU=u;if(have.ori!==1){have.ori=1;renderPills();refreshStatus()}return}
-  if(m>9.0&&m<10.6&&lastLinMag<0.6){var k=have.gyro===1?0.02:0.15;gU=unit([gU[0]+k*(u[0]-gU[0]),gU[1]+k*(u[1]-gU[1]),gU[2]+k*(u[2]-gU[2])])}
-}
-
-function onLinear(ax,ay,az,t){
-  if(have.acc!==1){have.acc=1;renderPills();refreshStatus()}
-  if(paused){speed=0;return}
-  var a=[ax,ay,az],am=len(a);push(accWin,am);lastLinMag+=(am-lastLinMag)*0.1;
-  if(!gU)return;
-  var dt=lastA?Math.min((t-lastA)/1000,0.1):0;lastA=t;if(!(dt>0))return;clk+=dt;
-  var ah=horiz(a,gU),spd=len(vb);
-  if(accWin.length>=WIN){
-    accStd=std(accWin);var ok=mean(accWin)<ZUPT_MEAN;
-    if(have.gyro===1){gyroRms=gyroWin.length>=WIN?rms(gyroWin):1;ok=ok&&gyroRms<ZUPT_GYRO}
-    stillT=(accStd<zAcc&&ok)?stillT+dt:0;
+  function pt(deg, r) {
+    var a = deg * D;
+    return [CX + r * Math.cos(a), CY + r * Math.sin(a)];
   }
-  var braked=clk-decelT<20;
-  var need=(spd<2.5||braked)?0.6:1.2;
-  still=stillT>need;
-  if(still){var kb=1-Math.exp(-dt/0.3);bb=[bb[0]+(ah[0]-bb[0])*kb,bb[1]+(ah[1]-bb[1])*kb,bb[2]+(ah[2]-bb[2])*kb]}
-  var ac=horiz([ah[0]-bb[0],ah[1]-bb[1],ah[2]-bb[2]],gU);
-  var k=1-Math.exp(-dt/0.05);fb=[fb[0]+(ac[0]-fb[0])*k,fb[1]+(ac[1]-fb[1])*k,fb[2]+(ac[2]-fb[2])*k];
-  var mm=len(fb);accMag=mm;
-  if(spd>1.5&&dot(fb,vb)/spd<-0.6)decelT=clk;
-  var rot=cross(w,vb);vb=[vb[0]-rot[0]*dt,vb[1]-rot[1]*dt,vb[2]-rot[2]*dt];
-
-  if(!still&&gyroMag<TURN_GYRO&&mm>DEADBAND){
-    var gain=(mm-DEADBAND)/mm;
-    if(dirB){
-      var rightB=cross(gU,dirB);
-      var aFwd=dot(fb,dirB),aRight=dot(fb,rightB);
-      var vFwd=dot(vb,dirB),vRight=dot(vb,rightB);
-      vFwd+=aFwd*gain*dt;            // отрицательная скорость = задний ход
-      vRight+=aRight*gain*dt*0.5;    // боковое гасим сильнее
-      vb=[dirB[0]*vFwd+rightB[0]*vRight,dirB[1]*vFwd+rightB[1]*vRight,dirB[2]*vFwd+rightB[2]*vRight];
-    }else{vb=[vb[0]+fb[0]*gain*dt,vb[1]+fb[1]*gain*dt,vb[2]+fb[2]*gain*dt]}
+  function el(name, attrs, text) {
+    var n = document.createElementNS(NS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    svg.appendChild(n);
+    return n;
   }
-  vb=horiz(vb,gU);
-  quietT=(len(vb)<0.6&&mm<0.12)?quietT+dt:0;
-  if(quietT>1.5){vb=[0,0,0];speed=0;return}
-  if(still){var z=Math.exp(-dt/0.12);vb=[vb[0]*z,vb[1]*z,vb[2]*z]}
-  else{var l=Math.exp(-dt/LEAK_TAU);vb=[vb[0]*l,vb[1]*l,vb[2]*l]}
-  spd=len(vb);speed=spd;
-  if(spd>0.8)dirB=[vb[0]/spd,vb[1]/spd,vb[2]/spd];
-  if(Hinit)H-=dot(w,gU)*dt;
-  else if(spd>1&&dirB){var Hm=compassHeading();H=Hm!=null?Hm:0;Hinit=true}
-  if(Hinit&&spd>0.2){
-    var sign=dot(vb,dirB||[0,1,0])>=0?1:-1;   // знак вдоль «вперёд»
-    posE+=spd*dt*Math.sin(H)*sign;posN+=spd*dt*Math.cos(H)*sign;dist+=spd*dt;
-    addPoint();
+
+  var s = pt(A0, RAD), e = pt(A0 + SWEEP, RAD);
+  var d = "M " + s[0] + " " + s[1] + " A " + RAD + " " + RAD + " 0 1 1 " + e[0] + " " + e[1];
+  el("path", { d: d, "class": "track" });
+  var fill = el("path", { d: d, "class": "fill", pathLength: "100", "stroke-dasharray": "0 100" });
+
+  for (var v = 0; v <= MAX; v += 10) {
+    var ang = A0 + SWEEP * v / MAX, major = v % 20 === 0;
+    var p1 = pt(ang, RAD - 12), p2 = pt(ang, RAD - (major ? 28 : 21));
+    el("line", { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1], "class": "tick" + (major ? " major" : "") });
+    if (major) {
+      var pl = pt(ang, RAD - 45);
+      el("text", { x: pl[0], y: pl[1], "class": "lbl" }, String(v));
+    }
   }
-}
 
-/* ---------- события (fallback) ---------- */
-function onMotion(ev){
-  var t=performance.now(),rr=ev.rotationRate;
-  if(rr&&rr.alpha!=null)onGyro(rr.beta*D,rr.gamma*D,rr.alpha*D,t);
-  var a=ev.acceleration,ag=ev.accelerationIncludingGravity;
-  if(ag&&ag.x!=null)onTotal(ag.x,ag.y,ag.z);
-  if(a&&a.x!=null)onLinear(a.x,a.y,a.z,t);
-  else if(ag&&ag.x!=null&&gU)onLinear(ag.x-9.81*gU[0],ag.y-9.81*gU[1],ag.z-9.81*gU[2],t);
-}
-function fallbackEvents(){
-  if(eventsOn)return;stopSensors();eventsOn=true;lastA=0;lastG=0;
-  window.addEventListener("devicemotion",onMotion,true);
-}
+  var needle = el("line", { x1: CX, y1: CY, x2: CX, y2: CY - (RAD - 22), "class": "needle" });
+  el("circle", { cx: CX, cy: CY, r: 9, "class": "hub" });
+  var digits = el("text", { x: CX, y: 226, "class": "digits" }, "0");
+  var unitEl = el("text", { x: CX, y: 248, "class": "unit" }, "км/ч");
 
-/* ---------- Generic Sensor API ---------- */
-function mk(key,Ctor,opts,onRead,fatal){
-  function bad(){if(fatal){fallbackEvents();return}if(have[key]!==undefined&&have[key]<=0){have[key]=-1;renderPills();refreshStatus()}}
-  try{var sn=new Ctor(opts);sensors.push(sn);
-    sn.addEventListener("reading",function(){onRead(sn)});
-    sn.addEventListener("error",function(){try{sn.stop()}catch(e){}bad()});
-    sn.start()
-  }catch(e){bad()}
-}
-async function startMotion(){
-  window.addEventListener("deviceorientationabsolute",onOrientEv,true);
-  window.addEventListener("deviceorientation",onOrientEv,true);
-  var needsPerm=typeof DeviceMotionEvent!=="undefined"&&typeof DeviceMotionEvent.requestPermission==="function";
-  if(needsPerm){
-    try{var r1=await DeviceMotionEvent.requestPermission();var r2=await DeviceOrientationEvent.requestPermission();
-      if(r1!=="granted"||r2!=="granted"){goOff("Доступ к датчикам запрещён. Разрешите в настройках.",true);return}
-    }catch(e){goOff("Браузер не дал запросить доступ.",true);return}
+  var $ = function (id) { return document.getElementById(id); };
+  var badge = $("badge"), msg = $("msg"), diag = $("diag"), peakEl = $("peak"), accEl = $("acc"), hdgEl = $("hdg"), sideEl = $("side");
+  var SIDES = ["С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ"];
+
+  function say(text, isErr) { msg.textContent = text; msg.className = isErr ? "err" : ""; }
+  function setBadge(text, cls) { badge.textContent = text; badge.className = "badge" + (cls ? " " + cls : ""); }
+
+  /* ---------- векторы ---------- */
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function len(a) { return Math.sqrt(dot(a, a)); }
+  function unit(a) { var l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  function horiz(a, g) { var p = dot(a, g); return [a[0] - p * g[0], a[1] - p * g[1], a[2] - p * g[2]]; }
+  function scl(a, k) { return [a[0] * k, a[1] * k, a[2] * k]; }
+  function wrapPi(x) { return ((x + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; }
+
+  /* ---------- состояние ---------- */
+  // have: 0 — ждём, 1 — работает, -1 — недоступно
+  var have = { acc: 0, gyro: 0, ori: 0, mag: 0, gps: 0 };
+  var PILL = { acc: $("p-acc"), gyro: $("p-gyro"), ori: $("p-ori"), mag: $("p-mag"), gps: $("p-gps") };
+  function renderPills() {
+    for (var k in PILL) PILL[k].className = "pill" + (have[k] > 0 ? " ok" : have[k] < 0 ? " bad" : "");
   }
-  var generic=("LinearAccelerationSensor" in window)&&("Accelerometer" in window);
-  if(!generic)fallbackEvents();
-  else{
-    mk("acc",LinearAccelerationSensor,{frequency:50},function(sn){if(sn.x!=null)onLinear(sn.x,sn.y,sn.z,sn.timestamp)},true);
-    mk("ori",Accelerometer,{frequency:50},function(sn){if(sn.x!=null)onTotal(sn.x,sn.y,sn.z)},true);
-    if("Gyroscope" in window)mk("gyro",Gyroscope,{frequency:50},function(sn){if(sn.x!=null)onGyro(sn.x,sn.y,sn.z,sn.timestamp)},false);
-    else{have.gyro=-1;renderPills()}
+  function clearHave() { have.acc = have.gyro = have.ori = have.mag = have.gps = 0; renderPills(); }
+
+  var gU = null;                       // единичный вектор «вверх» в осях телефона (сила тяжести + гироскоп)
+  var w = [0, 0, 0], gb = [0, 0, 0];   // вращение телефона и смещение нуля гироскопа
+  var lastG = 0, lastLinMag = 0, lastA = 0, clk = 0;
+  var vb = [0, 0, 0];                  // скорость в осях телефона, м/с (только горизонталь)
+  var bb = [0, 0, 0];                  // смещение нуля акселерометра, учится в покое
+  var fb = [0, 0, 0];                  // сглаженное ускорение
+  var fwdB = null, revDist = 0;        // ось «вперёд» машины в осях телефона
+  var sSpeed = 0;                      // скорость со знаком: минус — едем назад
+  var accWin = [], gyroWin = [];
+  var stillT = 0, still = false, quietT = 0, decelT = -1e9, accStd = 0, gyroRms = 0, gyroMag = 0;
+  var gpsStill = false, gps = { t: 0, acc: 999, still: 0 }, gpsEval = 0, gpsPrev = null, gpsRej = 0, gpsPrevSp = null, gpsInfo = "";
+
+  var speed = 0, shown = 0, peak = 0, accMag = 0;
+  var Rabs = null, lastO = 0, compOff = 0;   // компас: ориентация к сторонам света и его поправка по GPS
+  var H = 0, Hinit = false, headingUp = false;   // курс машины (рад, по часовой от севера)
+  var posE = 0, posN = 0, dist = 0, track = [], lastPt = null, org = null;
+  var mode = "off";                    // off | inertial | gps | demo
+  var sensors = [], eventsOn = false, geoId = null, waitTimer = null, demoT = 0, prevFix = null;
+  var zoom = 16, fitMode = false;
+
+  var HTTPS_MSG = "Страница открыта по адресу " + location.protocol + "//, а браузер отдаёт датчики и геолокацию только по HTTPS (или с localhost). Откройте страницу с хостинга по https://.";
+
+  function clearTrack() { track = []; lastPt = null; posE = posN = 0; dist = 0; org = null; gpsPrev = null; gpsEval = 0; gpsRej = 0; }
+  function resetMotion() {
+    vb = [0, 0, 0]; bb = [0, 0, 0]; fb = [0, 0, 0]; fwdB = null; revDist = 0; sSpeed = 0; speed = 0; peak = 0; accMag = 0; lastA = 0;
+    stillT = 0; still = false; quietT = 0; decelT = -1e9; accWin = []; gyroWin = []; demoT = 0; prevFix = null;
+    gpsStill = false; gps.still = 0; gps.t = 0; gpsPrevSp = null; gpsInfo = "";
   }
-  waitTimer=setTimeout(function(){
-    if(have.acc!==1)have.acc=-1;if(have.ori!==1)have.ori=-1;if(have.gyro===0)have.gyro=-1;if(have.mag===0)have.mag=-1;
-    renderPills();refreshStatus()
-  },3500);
-}
+  function resetHeading() { H = 0; Hinit = false; Rabs = null; }
 
-/* ---------- трек и карта Leaflet (интернет-тайлы) ---------- */
-function addPoint(){
-  if(!lastPt||Math.sqrt((posE-lastPt[0])**2+(posN-lastPt[1])**2)>1.5){
-    lastPt=[posE,posN];track.push(lastPt);
-    if(track.length>5000)track=track.filter((_,i)=>i%2===0);
-    updateMapTrack();
+  function syncUi() {
+    $("start").textContent = mode === "inertial" ? "Остановить" : "Датчики";
+    $("start").className = mode === "inertial" ? "on" : "primary";
+    $("gps").textContent = mode === "gps" ? "Остановить GPS" : "GPS";
+    $("gps").className = mode === "gps" ? "on" : "";
+    $("demo").textContent = mode === "demo" ? "Остановить демо" : "Демо";
+    $("up").textContent = headingUp ? "Север вверх" : "Курс вверх";
+    $("up").className = headingUp ? "on" : "";
+    $("fit").textContent = fitMode ? "Следовать" : "Весь трек";
+    $("fit").className = fitMode ? "on" : "";
   }
-}
 
-var leafletMap=null,leafletPolyline=null,leafletMarker=null,mapReady=false;
-function initLeaflet(){
-  if(leafletMap)return;
-  var el=$("map");if(!el||!el.clientWidth)return;
-  // Координаты по умолчанию — Москва (центр региона Москва–Дубна–Кимры)
-  leafletMap=L.map(el,{zoomControl:true,attributionControl:false}).setView([55.7558,37.6173],10);
-  // Основной слой: зеркало, созданное для обхода блокировок в РФ
-  var mainLayer = L.tileLayer('https://t.co.fantastic-game.ru/rkn/tiles/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    minZoom: 8,
-    errorTileUrl: ''
-  }).addTo(leafletMap);
-  // Резервный слой: альтернативный домен того же проекта
-  var fallbackLayer = L.tileLayer('https://weekthor.ru/tiles/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    minZoom: 8,
-    errorTileUrl: ''
-  });
-  // Переключатель на случай, если основной сервер недоступен
-  L.control.layers({
-    "Основной (РФ)": mainLayer,
-    "Резервный": fallbackLayer
-  }).addTo(leafletMap);
-  leafletPolyline=L.polyline([],{color:'#0b8f9c',weight:4}).addTo(leafletMap);
-  mapReady=true;
-}
-function updateMapTrack(){
-  if(!mapReady)return;
-  var lat0=org?org.lat:55.7558,lon0=org?org.lon:37.6173;
-  var pts=track.map(function(p){
-    return[lat0+p[1]/111320,lon0+p[0]/(111320*Math.cos(lat0*D))];
-  });
-  leafletPolyline.setLatLngs(pts);
-  if(pts.length){
-    var last=pts[pts.length-1];
-    if(!leafletMarker)leafletMarker=L.circleMarker(last,{radius:8,color:'#d6342a',fillOpacity:1}).addTo(leafletMap);
-    else leafletMarker.setLatLng(last);
-    leafletMap.panTo(last,{animate:false});
+  function stopSensors() {
+    for (var i = 0; i < sensors.length; i++) { try { sensors[i].stop(); } catch (err) {} }
+    sensors = [];
   }
-}
-function setManualPosition(){
-  var lat=parseFloat($("lat").value),lon=parseFloat($("lon").value);
-  if(isNaN(lat)||lat<-90||lat>90){say("Широта: от −90 до 90.",true);return}
-  if(isNaN(lon)||lon<-180||lon>180){say("Долгота: от −180 до 180.",true);return}
-  org={lat:lat,lon:lon};posE=0;posN=0;clearTrack();updateMapTrack();
-  if(mapReady)leafletMap.setView([lat,lon],14);
-  say("Точка задана: "+lat.toFixed(5)+", "+lon.toFixed(5));
-}
 
-/* ---------- GPS только для центрирования ---------- */
-function centerByGps(){
-  if(!navigator.geolocation){say("Геолокация недоступна.",true);return}
-  say("Запрашиваю координаты один раз…");
-  navigator.geolocation.getCurrentPosition(function(p){
-    var lat=p.coords.latitude,lon=p.coords.longitude;
-    $("lat").value=lat.toFixed(6);$("lon").value=lon.toFixed(6);
-    org={lat:lat,lon:lon};posE=0;posN=0;clearTrack();updateMapTrack();
-    if(mapReady)leafletMap.setView([lat,lon],15);
-    say("Координаты получены: "+lat.toFixed(5)+", "+lon.toFixed(5)+". Карта центрирована.");
-  },function(err){
-    if(err.code===1)say("Доступ к геолокации запрещён.",true);
-    else say("Не удалось получить координаты. Попробуйте на открытом месте.",true);
-  },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
-}
-
-/* ---------- демо ---------- */
-function demoStep(dt){
-  if(paused){speed=0;return}
-  demoT+=dt;var t=demoT%40,target;
-  if(t<10)target=60*(t/10);else if(t<18)target=60+8*Math.sin((t-10)*0.9);
-  else if(t<26)target=60+30*((t-18)/8);else if(t<31)target=90-10*((t-26)/5);
-  else target=Math.max(0,80*(1-(t-31)/8));
-  var ms=target/3.6;accMag=Math.abs(ms-speed)/Math.max(dt,0.016);
-  speed+=(ms-speed)*Math.min(1,dt*4);
-  H=(20+70*Math.sin(demoT/9))*D;Hinit=true;
-  var st=speed*dt;
-  posE+=st*Math.sin(H);posN+=st*Math.cos(H);dist+=speed*dt;addPoint();
-}
-
-/* ---------- отрисовка ---------- */
-function headingText(){return Hinit?(((H-mapRef)/D%360)+360)%360:null}
-var prev=performance.now(),diagT=0,mapT=0;
-function frame(now){
-  var dt=Math.min((now-prev)/1000,0.1);prev=now;
-  if(mode==="demo")demoStep(dt);
-  var kmh=mode==="off"?0:speed*3.6;
-  shown+=(kmh-shown)*Math.min(1,dt*10);
-  var c=Math.max(0,Math.min(MAX,shown));
-  needle.setAttribute("transform","rotate("+(A0+SWEEP*c/MAX+90)+" "+CX+" "+CY+")");
-  fill.setAttribute("stroke-dasharray",(c/MAX*100)+" 100");
-  digits.textContent=String(Math.round(shown));
-  if(shown>peak)peak=shown;
-  peakEl.textContent=String(Math.round(peak));
-  accEl.textContent=accMag.toFixed(1);
-  var hd=headingText();
-  hdgEl.textContent=hd==null?"—":Math.round(hd)+"°";
-  sideEl.textContent=hd==null||locked?"":SIDES[Math.round(hd/45)%8];
-  diagT+=dt;mapT+=dt;
-  if(diagT>0.25){diagT=0;
-    if(mode==="inertial")diag.textContent="разброс "+accStd.toFixed(3)+" (порог "+zAcc.toFixed(3)+") · вращение "+gyroRms.toFixed(3)+" · покой: "+(still?"да":"нет")+" · v="+speed.toFixed(2);
+  function stopAll() {
+    stopSensors();
+    window.removeEventListener("deviceorientationabsolute", onOrientEv, true);
+    window.removeEventListener("deviceorientation", onOrientEv, true);
+    window.removeEventListener("devicemotion", onMotion, true);
+    eventsOn = false;
+    if (geoId != null && navigator.geolocation) { navigator.geolocation.clearWatch(geoId); geoId = null; }
+    clearTimeout(waitTimer);
   }
-  if(mapT>0.3&&!$("panel-map").hidden){mapT=0;
-    $("dist").textContent=dist<1000?String(Math.round(dist)):(dist/1000).toFixed(2);
-    $("distu").textContent=dist<1000?"м":"км";
-    $("hdg2").textContent=hd==null?"—":Math.round(hd)+"°";
-    $("npts").textContent=String(track.length);
-    updateMapTrack();
+
+  function goOff(text, isErr) {
+    stopAll(); mode = "off"; syncUi(); setBadge("Выкл.", ""); clearHave();
+    diag.textContent = "";
+    say(text, isErr);
+  }
+
+  function refreshStatus() {
+    if (mode !== "inertial") return;
+    if (have.acc > 0 && have.ori > 0) setBadge("Датчики", "live");
+    var t, bad = true;
+    if (have.acc < 0 || have.ori < 0) t = "Датчик ускорения недоступен, скорость по датчикам не посчитать. Разрешите сайту «Датчики движения» или переключитесь на GPS.";
+    else if (have.acc > 0 && have.ori > 0) {
+      t = "Датчики работают. Постойте неподвижно 1–2 секунды (так учится ноль), затем трогайтесь вперёд.";
+      if (have.gyro < 0) t += " Гироскопа нет: вращение телефона не учитывается.";
+      bad = have.gyro < 0;
+    } else { t = "Запускаю датчики…"; bad = false; }
+    say(t, bad);
+  }
+
+  /* ---------- компас (события, у них порядок осей задан стандартом) ---------- */
+  function eulerToMat(aDeg, bDeg, gDeg) {
+    var a = aDeg * D, b = bDeg * D, g = gDeg * D;
+    var cA = Math.cos(a), sA = Math.sin(a), cB = Math.cos(b), sB = Math.sin(b), cG = Math.cos(g), sG = Math.sin(g);
+    return [[cA * cG - sA * sB * sG, -cB * sA, cG * sA * sB + cA * sG],
+            [cG * sA + cA * sB * sG, cA * cB, sA * sG - cA * cG * sB],
+            [-cB * sG, sB, cB * cG]];
+  }
+
+  // сырой курс оси «вперёд» по компасу, без поправки
+  function compassHeading() {
+    if (!Rabs || !fwdB) return null;
+    var m = Rabs;
+    var e = m[0][0] * fwdB[0] + m[0][1] * fwdB[1] + m[0][2] * fwdB[2];
+    var n = m[1][0] * fwdB[0] + m[1][1] * fwdB[1] + m[1][2] * fwdB[2];
+    if (Math.sqrt(e * e + n * n) < 0.3) return null;
+    return Math.atan2(e, n);
+  }
+
+  function onOrientEv(ev) {
+    if (ev.alpha == null || ev.beta == null || ev.gamma == null) return;
+    var al = ev.alpha, abs = ev.type === "deviceorientationabsolute" || ev.absolute === true;
+    if (ev.webkitCompassHeading != null) { al = 360 - ev.webkitCompassHeading; abs = true; }
+    if (!abs) return;
+    Rabs = eulerToMat(al, ev.beta, ev.gamma);
+    if (have.mag !== 1) { have.mag = 1; renderPills(); }
+    var tn = performance.now(), dtO = lastO ? Math.min((tn - lastO) / 1000, 0.2) : 0; lastO = tn;
+    if (mode === "inertial" && Hinit && fwdB && dtO > 0) {
+      var Hm = compassHeading();
+      if (Hm != null) H += wrapPi(Hm + compOff - H) * Math.min(1, dtO * 0.08);   // медленно подтягиваем гироскопный курс к компасу
+    }
+  }
+
+  /* ---------- ядро режима датчиков ---------- */
+  function push(arr, x) { arr.push(x); if (arr.length > WIN) arr.shift(); }
+  function std(arr) {
+    var m = 0, i; for (i = 0; i < arr.length; i++) m += arr[i]; m /= arr.length;
+    var q = 0; for (i = 0; i < arr.length; i++) q += (arr[i] - m) * (arr[i] - m);
+    return Math.sqrt(q / arr.length);
+  }
+  function mean(arr) { var m = 0; for (var i = 0; i < arr.length; i++) m += arr[i]; return m / arr.length; }
+  function rms(arr) { var q = 0; for (var i = 0; i < arr.length; i++) q += arr[i] * arr[i]; return Math.sqrt(q / arr.length); }
+
+  // гироскоп: вращение телефона в его осях (рад/с); вместе с ним поворачивается и вектор «вверх»
+  function onGyro(x, y, z, t) {
+    var dtg = lastG ? Math.min((t - lastG) / 1000, 0.1) : 0;
+    lastG = t;
+    if (still && dtg > 0) {   // в покое учим смещение нуля гироскопа
+      var kg = 1 - Math.exp(-dtg / 1.0);
+      gb = [gb[0] + (x - gb[0]) * kg, gb[1] + (y - gb[1]) * kg, gb[2] + (z - gb[2]) * kg];
+    }
+    w = [x - gb[0], y - gb[1], z - gb[2]]; gyroMag = len(w); push(gyroWin, gyroMag);
+    if (have.gyro !== 1) { have.gyro = 1; renderPills(); refreshStatus(); }
+    if (gU && dtg > 0) {
+      var c = cross(w, gU);
+      gU = unit([gU[0] - c[0] * dtg, gU[1] - c[1] * dtg, gU[2] - c[2] * dtg]);
+    }
+  }
+
+  // акселерометр с силой тяжести: уточняет «вверх» только когда телефон почти не разгоняется
+  function onTotal(ax, ay, az) {
+    var m = Math.sqrt(ax * ax + ay * ay + az * az);
+    if (m < 7 || m > 12) return;
+    var u = [ax / m, ay / m, az / m];
+    if (!gU) {
+      gU = u;
+      if (have.ori !== 1) { have.ori = 1; renderPills(); refreshStatus(); }
+      return;
+    }
+    if (m > 9.0 && m < 10.6 && lastLinMag < 0.6) {
+      var k = have.gyro === 1 ? 0.02 : 0.15;
+      gU = unit([gU[0] + k * (u[0] - gU[0]), gU[1] + k * (u[1] - gU[1]), gU[2] + k * (u[2] - gU[2])]);
+    }
+  }
+
+  // линейное ускорение (без силы тяжести) в осях телефона, t в мс
+  function onLinear(ax, ay, az, t) {
+    if (have.acc !== 1) { have.acc = 1; renderPills(); refreshStatus(); }
+    var a = [ax, ay, az], am = len(a);
+    push(accWin, am);
+    lastLinMag += (am - lastLinMag) * 0.1;
+    if (!gU) return;
+    var dt = lastA ? Math.min((t - lastA) / 1000, 0.1) : 0;
+    lastA = t;
+    if (!(dt > 0)) return;
+    clk += dt;
+
+    var ah = horiz(a, gU);                         // вертикаль мира убрана, остаётся горизонтальное ускорение
+    var spd = len(vb);
+
+    // покой: малый разброс ускорения, нулевое среднее и почти нет вращения
+    if (accWin.length >= WIN) {
+      accStd = std(accWin);
+      var ok = mean(accWin) < ZUPT_MEAN;
+      if (have.gyro === 1) { gyroRms = gyroWin.length >= WIN ? rms(gyroWin) : 1; ok = ok && gyroRms < ZUPT_GYRO; }
+      stillT = (accStd < zAcc && ok) ? stillT + dt : 0;
+    }
+    // на ходу «стоп» по вибрации разрешён только после торможения: иначе ровная езда принимается за покой
+    var braked = clk - decelT < 20;
+    var need = (spd < 2.5 || braked) ? 0.5 : 1e9;
+    // «стоим» по GPS принимаем, только если акселерометр согласен: GPS отстаёт на секунду и в начале разгона ещё говорит «стоим»
+    var gs = gpsStill && (performance.now() - gps.t < 3500) && len(fb) < 0.35 && lastLinMag < 0.5;
+    still = stillT > need || gs;
+    if (stillT > 3) revDist = 0;
+
+    // в покое учим смещение нуля
+    if (still) {
+      var kb = 1 - Math.exp(-dt / 0.5);
+      bb = [bb[0] + (ah[0] - bb[0]) * kb, bb[1] + (ah[1] - bb[1]) * kb, bb[2] + (ah[2] - bb[2]) * kb];
+    }
+    var ac = horiz([ah[0] - bb[0], ah[1] - bb[1], ah[2] - bb[2]], gU);
+
+    var k = 1 - Math.exp(-dt / 0.05);              // сглаживание дрожи
+    fb = [fb[0] + (ac[0] - fb[0]) * k, fb[1] + (ac[1] - fb[1]) * k, fb[2] + (ac[2] - fb[2]) * k];
+    var mm = len(fb);
+    accMag = mm;
+
+    // торможение: ускорение против движения
+    if (spd > 1.5 && dot(fb, vb) / spd < -0.6) decelT = clk;
+
+    // поворот телефона вместе с машиной: скорость в осях телефона вращается вместе с ним (dv/dt = a − ω × v)
+    var rot = cross(w, vb);
+    vb = [vb[0] - rot[0] * dt, vb[1] - rot[1] * dt, vb[2] - rot[2] * dt];
+
+    if (!still && gyroMag < TURN_GYRO && mm > DEADBAND) vb = [vb[0] + fb[0] * dt, vb[1] + fb[1] * dt, vb[2] + fb[2] * dt];
+    vb = horiz(vb, gU);                            // машина не едет вверх и вниз
+
+    // машина не едет боком: поперечную часть скорости гасим
+    if (fwdB) {
+      var s0 = dot(vb, fwdB), kl = 1 - Math.exp(-dt / 1.0);
+      vb = [vb[0] - (vb[0] - s0 * fwdB[0]) * kl, vb[1] - (vb[1] - s0 * fwdB[1]) * kl, vb[2] - (vb[2] - s0 * fwdB[2]) * kl];
+    }
+
+    // мягкий стоп: почти не движемся и нет ускорения
+    quietT = (len(vb) < 0.8 && mm < 0.15) ? quietT + dt : 0;
+    if (quietT > 2) vb = [0, 0, 0];
+
+    if (still) vb = scl(vb, Math.exp(-dt / 0.15));
+    else vb = scl(vb, Math.exp(-dt / LEAK_TAU));
+
+    spd = len(vb);
+
+    // ось «вперёд»: по первому заметному движению, дальше уточняется по ходу вперёд
+    if (!fwdB) {
+      if (spd > 1.5) fwdB = unit(vb);
+    } else {
+      var s1 = dot(vb, fwdB);
+      if (s1 > 2) fwdB = unit(horiz(unit([fwdB[0] + 0.02 * (vb[0] / spd - fwdB[0]), fwdB[1] + 0.02 * (vb[1] / spd - fwdB[1]), fwdB[2] + 0.02 * (vb[2] / spd - fwdB[2])]), gU));
+      // назад ездят недолго и медленно; если дольше или быстрее, значит ось «вперёд» была выбрана наоборот
+      if (s1 < -0.3) {
+        revDist += -s1 * dt;
+        if (revDist > 30 || -s1 > 6) { fwdB = scl(fwdB, -1); if (Hinit) H += Math.PI; revDist = 0; }
+      } else if (s1 > 0.5) revDist = 0;
+    }
+    sSpeed = fwdB ? dot(vb, fwdB) : spd;
+    speed = Math.abs(sSpeed);
+
+    // курс: гироскоп крутит курс вместе с машиной, компас и GPS его подправляют
+    if (Hinit) H -= dot(w, gU) * dt;
+    else if (fwdB) {
+      var Hm = compassHeading();
+      H = Hm != null ? Hm + compOff : 0; Hinit = true;
+    }
+    if (Hinit && speed > 0.3) {
+      var ds = sSpeed * dt;                        // назад ds отрицательный, и точка идёт в обратную сторону
+      posE += ds * Math.sin(H); posN += ds * Math.cos(H); dist += Math.abs(ds);
+      addPoint();
+    }
+  }
+
+  /* ---------- запасной путь через события ---------- */
+  function onMotion(ev) {
+    var t = performance.now(), rr = ev.rotationRate;
+    if (rr && rr.alpha != null) onGyro(rr.beta * D, rr.gamma * D, rr.alpha * D, t);   // x = beta, y = gamma, z = alpha
+    var a = ev.acceleration, ag = ev.accelerationIncludingGravity;
+    if (ag && ag.x != null) onTotal(ag.x, ag.y, ag.z);
+    if (a && a.x != null) onLinear(a.x, a.y, a.z, t);
+    else if (ag && ag.x != null && gU) onLinear(ag.x - 9.81 * gU[0], ag.y - 9.81 * gU[1], ag.z - 9.81 * gU[2], t);
+  }
+
+  function fallbackEvents() {
+    if (eventsOn) return;
+    stopSensors();
+    eventsOn = true; lastA = 0; lastG = 0;
+    window.addEventListener("devicemotion", onMotion, true);
+  }
+
+  /* ---------- Generic Sensor API (Chrome на Android) ---------- */
+  function mk(key, Ctor, opts, onRead, fatal) {
+    function bad() {
+      if (fatal) { fallbackEvents(); return; }
+      if (have[key] !== undefined && have[key] <= 0) { have[key] = -1; renderPills(); refreshStatus(); }
+    }
+    try {
+      var sn = new Ctor(opts);
+      sensors.push(sn);
+      sn.addEventListener("reading", function () { onRead(sn); });
+      sn.addEventListener("error", function () { try { sn.stop(); } catch (err) {} bad(); });
+      sn.start();
+    } catch (err) { bad(); }
+  }
+
+  function startMotion() {
+    window.addEventListener("deviceorientationabsolute", onOrientEv, true);
+    window.addEventListener("deviceorientation", onOrientEv, true);
+    var generic = ("LinearAccelerationSensor" in window) && ("Accelerometer" in window);
+    if (!generic) fallbackEvents();
+    else {
+      mk("acc", LinearAccelerationSensor, { frequency: 50 }, function (sn) {
+        if (sn.x != null) onLinear(sn.x, sn.y, sn.z, sn.timestamp);
+      }, true);
+      mk("ori", Accelerometer, { frequency: 50 }, function (sn) {
+        if (sn.x != null) onTotal(sn.x, sn.y, sn.z);
+      }, true);
+      if ("Gyroscope" in window) mk("gyro", Gyroscope, { frequency: 50 }, function (sn) {
+        if (sn.x != null) onGyro(sn.x, sn.y, sn.z, sn.timestamp);
+      }, false);
+      else { have.gyro = -1; renderPills(); }
+    }
+    waitTimer = setTimeout(function () {
+      if (have.acc !== 1) have.acc = -1;
+      if (have.ori !== 1) have.ori = -1;
+      if (have.gyro === 0) have.gyro = -1;
+      if (have.mag === 0) have.mag = -1;
+      renderPills(); refreshStatus();
+    }, 3500);
+  }
+
+  /* ---------- координаты ---------- */
+  function toEN(c) { return [(c.longitude - org.lon) * D * RE * Math.cos(org.lat * D), (c.latitude - org.lat) * D * RE]; }
+  function toLL(E, N) { return [org.lat + N / (RE * D), org.lon + E / (RE * D * Math.cos(org.lat * D))]; }
+  function distM(a, b) {
+    var dLat = (b.latitude - a.latitude) * D, dLon = (b.longitude - a.longitude) * D;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.latitude * D) * Math.cos(b.latitude * D) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * RE * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function fixSpeed(p, allowDerived) {
+    var c = p.coords, t = p.timestamp / 1000, sp = c.speed, derived = false;
+    if ((sp == null || isNaN(sp)) && allowDerived && prevFix && t > prevFix.t) { sp = distM(prevFix.c, c) / (t - prevFix.t); derived = true; }
+    prevFix = { c: { latitude: c.latitude, longitude: c.longitude }, t: t };
+    if (sp == null || isNaN(sp)) return null;
+    if (derived && sp < 1) sp = 0;                 // по разности координат малую скорость не отличить от шума
+    return sp;
+  }
+
+  // отдельный режим «GPS»: скорость и трек целиком по спутникам
+  function onFixGps(p) {
+    var c = p.coords;
+    var prevC = prevFix ? prevFix.c : null;
+    var sp = fixSpeed(p, true);
+    if (have.gps !== 1) { have.gps = 1; renderPills(); }
+    setBadge("GPS", "live");
+    if (sp == null) { say("GPS на связи, скорость пока не определена. Начните движение."); return; }
+    if (c.accuracy > 100) { say("GPS неточный (±" + Math.round(c.accuracy) + " м), жду лучшего сигнала…", true); return; }
+    speed = sp < 0.5 ? 0 : sp; sSpeed = speed;
+    if (!org) org = { lat: c.latitude, lon: c.longitude };
+    var g = toEN(c); posE = g[0]; posN = g[1];
+    if (speed > 0 && prevC) dist += distM(prevC, c);
+    if (speed > 0 || !lastPt) addPoint();
+    if (c.heading != null && !isNaN(c.heading) && sp > 1) { H = c.heading * D; Hinit = true; }
+    say("GPS работает, точность ±" + Math.round(c.accuracy) + " м. Обновление раз в секунду, это предел спутникового приёмника.");
+  }
+
+  // «GPS раз в 5 секунд» в режиме датчиков: не источник скорости, а проверка и поправка координат
+  function onFixAssist(p) {
+    var c = p.coords, now = performance.now();
+    if (have.gps !== 1) { have.gps = 1; renderPills(); }
+    gps.t = now; gps.acc = c.accuracy;
+    var sp = c.speed;
+    if (sp == null || isNaN(sp)) return;
+    if (c.accuracy <= 30) {                        // остановку смотрим по каждой точке
+      if (sp < 0.4) { gps.still++; gpsStill = gps.still >= 2; } else { gps.still = 0; gpsStill = false; }
+    }
+    if (now - gpsEval < GPS_PERIOD - 200) return;  // координаты проверяем раз в 5 секунд
+    if (c.accuracy > 20) { gpsInfo = "GPS ±" + Math.round(c.accuracy) + " м, пропуск"; return; }
+    gpsEval = now;
+
+    if (!org) {                                    // первая хорошая точка привязывает трек к карте
+      org = { lat: c.latitude - posN / (RE * D), lon: c.longitude - posE / (RE * D * Math.cos(c.latitude * D)) };
+      var g0 = toEN(c);
+      gpsPrev = { t: now, E: posE, N: posN, gE: g0[0], gN: g0[1] };
+      gpsPrevSp = sp; gpsInfo = "привязка к карте";
+      return;
+    }
+    var g = toEN(c), spIn = Math.abs(sSpeed), why = [];
+    var trav = Hinit ? H + (sSpeed < 0 ? Math.PI : 0) : null;
+    if (Math.abs(sp - spIn) > GPS_TOL) why.push("скорость");
+    if (sp > GPS_TOL && spIn > GPS_TOL && trav != null && c.heading != null && !isNaN(c.heading) && Math.abs(wrapPi(c.heading * D - trav)) > 25 * D) why.push("направление");
+    if (gpsPrev) {
+      var dtp = (now - gpsPrev.t) / 1000;
+      var dd = Math.sqrt(Math.pow((g[0] - gpsPrev.gE) - (posE - gpsPrev.E), 2) + Math.pow((g[1] - gpsPrev.gN) - (posN - gpsPrev.N), 2));
+      if (dd > GPS_TOL * dtp + c.accuracy) why.push("координаты");
+    }
+    var stable = gpsPrevSp != null && Math.abs(sp - gpsPrevSp) < 0.55;
+    gpsPrevSp = sp;
+    // дрейф скорости: мягкая поправка, пока расхождение не больше 10 км/ч (координаты при этом принимаются только в пределах 5 км/ч)
+    if (sp > 2 && spIn > 0.5 && Math.abs(sp - spIn) < 2 * GPS_TOL) vb = scl(vb, 1 + 0.5 * (Math.max(0.7, Math.min(1.4, sp / spIn)) - 1));
+
+    if (!why.length) {
+      posE += 0.7 * (g[0] - posE); posN += 0.7 * (g[1] - posN);
+      if (sp > 3 && Hinit && c.heading != null && !isNaN(c.heading)) {
+        H += wrapPi(c.heading * D - trav) * 0.5;   // курс по GPS
+        var Hm = compassHeading();
+        if (Hm != null) compOff += wrapPi((H - Hm) - compOff) * 0.3;   // и поправка компаса, чтобы без GPS он не врал
+      }
+      gpsRej = 0; gpsInfo = "принята";
+      gpsPrev = { t: now, E: posE, N: posN, gE: g[0], gN: g[1] };   // сравниваем дальше только с принятыми точками
+    } else {
+      gpsRej++; gpsInfo = "отклонена: " + why.join(", ");
+      // долго не сходимся и GPS уверенно движется: датчики потеряли ход, пересинхронизация
+      if ((gpsRej >= 6 || (gpsRej >= 2 && spIn < 0.5)) && sp > 2 && c.accuracy <= 10 && stable) {
+        var dir = fwdB ? scl(fwdB, sSpeed < 0 ? -1 : 1) : null;
+        if (dir) vb = scl(dir, sp);
+        posE = g[0]; posN = g[1];
+        if (c.heading != null && !isNaN(c.heading)) { H = c.heading * D - (sSpeed < 0 ? Math.PI : 0); Hinit = true; }
+        gpsRej = 0; gpsInfo = "пересинхронизация по GPS";
+        gpsPrev = { t: now, E: posE, N: posN, gE: g[0], gN: g[1] };
+      }
+    }
+  }
+
+  function onGpsErr(err) {
+    if (err.code === 1) {
+      if (mode === "gps") goOff("Доступ к геолокации запрещён. Разрешите сайту «Геоданные» в настройках и повторите.", true);
+      else { have.gps = -1; renderPills(); }
+    } else if (err.code === 2) {
+      if (mode === "gps") goOff("Не удалось определить положение. Выйдите на открытое место и повторите.", true);
+      else { have.gps = -1; renderPills(); }
+    } else if (mode === "gps") say("GPS пока не ответил, продолжаю искать спутники…", true);
+  }
+
+  function watchGps(cb) {
+    if (!navigator.geolocation) { have.gps = -1; renderPills(); return false; }
+    geoId = navigator.geolocation.watchPosition(cb, onGpsErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    return true;
+  }
+
+  function startGps() {
+    stopAll(); resetMotion(); resetHeading(); clearTrack(); clearHave(); mode = "gps"; syncUi(); setBadge("Поиск GPS", "");
+    if (!window.isSecureContext) { goOff(HTTPS_MSG, true); return; }
+    if (!navigator.geolocation) { goOff("Геолокация недоступна в этом браузере.", true); return; }
+    say("Запрашиваю доступ к геолокации…");
+    watchGps(onFixGps);
+    try { if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(function () {}); } catch (err) {}
+  }
+
+  async function startInertial() {
+    stopAll(); resetMotion(); resetHeading(); clearTrack();
+    gU = null; w = [0, 0, 0]; gb = [0, 0, 0]; lastG = 0; lastLinMag = 0; clk = 0; gyroMag = 0; gyroRms = 0; accStd = 0;
+    clearHave(); mode = "inertial"; syncUi(); setBadge("Запуск", "");
+    if (!window.isSecureContext) { goOff(HTTPS_MSG, true); return; }
+    say("Запрашиваю доступ к датчикам…");
+    var reqs = [];
+    try {
+      if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") reqs.push(DeviceMotionEvent.requestPermission());
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") reqs.push(DeviceOrientationEvent.requestPermission());
+      var res = await Promise.all(reqs);
+      if (mode !== "inertial") return;
+      if (res.some(function (r) { return r !== "granted"; })) {
+        goOff("Доступ к датчикам движения запрещён. Разрешите «Датчики движения» в настройках сайта и повторите.", true);
+        return;
+      }
+    } catch (err) {
+      goOff("Браузер не дал запросить доступ к датчикам.", true);
+      return;
+    }
+    startMotion();
+    if ($("assist").checked) watchGps(onFixAssist);
+    try { if (navigator.wakeLock) navigator.wakeLock.request("screen").catch(function () {}); } catch (err) {}
+  }
+
+  /* ---------- трек ---------- */
+  function addPoint() {
+    if (!lastPt || Math.sqrt((posE - lastPt[0]) * (posE - lastPt[0]) + (posN - lastPt[1]) * (posN - lastPt[1])) > 2) {
+      lastPt = [posE, posN]; track.push(lastPt);
+      if (track.length > 4000) track = track.filter(function (_, i) { return i % 2 === 0; });
+    }
+  }
+
+  /* ---------- карта: плитки с автопереключением источника ---------- */
+  var SRC = [
+    { id: "osm", name: "OpenStreetMap", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attr: "© OpenStreetMap" },
+    { id: "osmfr", name: "OSM Франция", url: "https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png", attr: "© OpenStreetMap, OSM France" },
+    { id: "osmde", name: "OSM Германия", url: "https://tile.openstreetmap.de/{z}/{x}/{y}.png", attr: "© OpenStreetMap" },
+    { id: "carto", name: "CARTO Voyager", url: "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png", attr: "© OpenStreetMap, © CARTO" }
+  ];
+  var srcStat = {}, tileCache = {}, tileKeys = [];
+  SRC.forEach(function (s0) { srcStat[s0.id] = { ok: 0, err: 0 }; });
+
+  function dead(s0) { var st = srcStat[s0.id]; return st.ok === 0 && st.err >= 4; }
+  function activeSource() {
+    var v0 = $("tiles").value || "auto", i;
+    if (v0 === "none") return null;
+    if (v0 !== "auto") { for (i = 0; i < SRC.length; i++) if (SRC[i].id === v0) return SRC[i]; return null; }
+    for (i = 0; i < SRC.length; i++) if (!dead(SRC[i])) return SRC[i];
+    return null;
+  }
+
+  function getTile(src, z, x, y) {
+    var key = src.id + "/" + z + "/" + x + "/" + y, t = tileCache[key];
+    if (t) return t;
+    t = { img: new Image(), ok: false, err: false };
+    tileCache[key] = t; tileKeys.push(key);
+    if (tileKeys.length > 400) delete tileCache[tileKeys.shift()];
+    t.img.onload = function () { t.ok = true; srcStat[src.id].ok++; };
+    t.img.onerror = function () { t.err = true; srcStat[src.id].err++; };
+    t.img.src = src.url.replace("{z}", z).replace("{x}", x).replace("{y}", y);
+    return t;
+  }
+
+  function niceStep(x) {
+    var p = Math.pow(10, Math.floor(Math.log(x) / Math.LN10)), f = x / p;
+    return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p;
+  }
+
+  function drawTiles(ctx, src, cE, cN, zoomF, S) {
+    var zt = Math.max(2, Math.min(19, Math.floor(zoomF))), sc = Math.pow(2, zoomF - zt), n = Math.pow(2, zt);
+    var ll = toLL(cE, cN), lat = ll[0] * D;
+    var cpx = (ll[1] + 180) / 360 * 256 * n;
+    var cpy = (1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2 * 256 * n;
+    var half = S * 0.75 / sc;
+    var x0 = Math.floor((cpx - half) / 256), x1 = Math.floor((cpx + half) / 256), y0 = Math.floor((cpy - half) / 256), y1 = Math.floor((cpy + half) / 256);
+    for (var ty = y0; ty <= y1; ty++) {
+      if (ty < 0 || ty >= n) continue;
+      for (var tx = x0; tx <= x1; tx++) {
+        var t = getTile(src, zt, ((tx % n) + n) % n, ty);
+        if (t.ok) ctx.drawImage(t.img, (tx * 256 - cpx) * sc, (ty * 256 - cpy) * sc, 256 * sc + 0.6, 256 * sc + 0.6);
+      }
+    }
+  }
+
+  function drawMap() {
+    var cv = $("map"), S = cv.clientWidth;
+    if (!S) return;
+    var dpr = window.devicePixelRatio || 1, px = Math.round(S * dpr);
+    if (cv.width !== px || cv.height !== px) { cv.width = px; cv.height = px; }
+    var ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var cs = getComputedStyle(document.documentElement);
+    var cPanel = cs.getPropertyValue("--panel"), cLine = cs.getPropertyValue("--line"), cMuted = cs.getPropertyValue("--muted");
+    var cAcc = cs.getPropertyValue("--accent"), cNeedle = cs.getPropertyValue("--needle"), cFg = cs.getPropertyValue("--fg");
+    ctx.fillStyle = cPanel; ctx.fillRect(0, 0, S, S);
+    ctx.font = "13px Inter, system-ui, sans-serif";
+
+    var info = $("mapinfo");
+    if (!Hinit && track.length < 2) {
+      ctx.fillStyle = cMuted; ctx.textAlign = "center";
+      ctx.fillText("Трек появится здесь, когда начнёте движение", S / 2, S / 2);
+      info.textContent = "";
+      return;
+    }
+
+    var mr = headingUp && Hinit ? H : 0;
+    var cosL = org ? Math.cos(org.lat * D) : 1;
+    var cE = posE, cN = posN, zoomF = zoom, i;
+    if (fitMode) {
+      var e0 = posE, e1 = posE, n0 = posN, n1 = posN;
+      for (i = 0; i < track.length; i++) {
+        if (track[i][0] < e0) e0 = track[i][0]; if (track[i][0] > e1) e1 = track[i][0];
+        if (track[i][1] < n0) n0 = track[i][1]; if (track[i][1] > n1) n1 = track[i][1];
+      }
+      cE = (e0 + e1) / 2; cN = (n0 + n1) / 2;
+      var span = Math.max(e1 - e0, n1 - n0, 60) * 1.35;
+      zoomF = Math.max(3, Math.min(19, Math.log(156543.03392 * cosL * S * 0.76 / span) / Math.LN2));
+    }
+    var mpp = 156543.03392 * cosL / Math.pow(2, zoomF);
+    function X(e) { return (e - cE) / mpp; }
+    function Y(n) { return -(n - cN) / mpp; }
+
+    var src = activeSource();
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+    ctx.rotate(-mr);                               // «курс вверх»: направление движения смотрит вверх
+
+    if (org && src) drawTiles(ctx, src, cE, cN, zoomF, S);
+    else {
+      var step = niceStep(S / 5 * mpp);
+      ctx.strokeStyle = cLine; ctx.lineWidth = 1; ctx.beginPath();
+      var g0, ext = S * mpp;
+      for (g0 = Math.ceil((cE - ext) / step) * step; g0 < cE + ext; g0 += step) { ctx.moveTo(X(g0), -S); ctx.lineTo(X(g0), S); }
+      for (g0 = Math.ceil((cN - ext) / step) * step; g0 < cN + ext; g0 += step) { ctx.moveTo(-S, Y(g0)); ctx.lineTo(S, Y(g0)); }
+      ctx.stroke();
+    }
+
+    if (track.length) {
+      ctx.strokeStyle = cAcc; ctx.lineWidth = 4; ctx.lineJoin = "round"; ctx.lineCap = "round";
+      ctx.beginPath();
+      for (i = 0; i < track.length; i++) { if (i) ctx.lineTo(X(track[i][0]), Y(track[i][1])); else ctx.moveTo(X(track[i][0]), Y(track[i][1])); }
+      ctx.lineTo(X(posE), Y(posN));
+      ctx.stroke();
+      ctx.fillStyle = cMuted; ctx.beginPath(); ctx.arc(X(track[0][0]), Y(track[0][1]), 4, 0, 6.2832); ctx.fill();
+    }
+    if (Hinit) {                                   // маркер «я здесь» со стрелкой по курсу
+      var mx = X(posE), my = Y(posN);
+      ctx.fillStyle = cNeedle; ctx.strokeStyle = cPanel; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(mx + 13 * Math.sin(H), my - 13 * Math.cos(H));
+      ctx.lineTo(mx + 9 * Math.sin(H + 2.5), my - 9 * Math.cos(H + 2.5));
+      ctx.lineTo(mx + 9 * Math.sin(H - 2.5), my - 9 * Math.cos(H - 2.5));
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+
+    // линейка масштаба, стрелка севера, подпись источника
+    var L = niceStep(80 * mpp), Lpx = L / mpp;
+    ctx.strokeStyle = cFg; ctx.fillStyle = cFg; ctx.lineWidth = 3; ctx.textAlign = "left";
+    ctx.beginPath(); ctx.moveTo(12, S - 30); ctx.lineTo(12 + Lpx, S - 30); ctx.stroke();
+    ctx.fillText(L >= 1000 ? (L / 1000) + " км" : L + " м", 12, S - 38);
+    var ax = S - 28, ay = 34, dx = -Math.sin(mr), dy = -Math.cos(mr);
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax - dx * 12, ay - dy * 12); ctx.lineTo(ax + dx * 12, ay + dy * 12); ctx.stroke();
+    ctx.textAlign = "center"; ctx.fillText("С", ax + dx * 24, ay + dy * 24 + 4);
+    var tiles = org && src;
+    ctx.fillStyle = cMuted; ctx.textAlign = "right"; ctx.font = "11px Inter, system-ui, sans-serif";
+    ctx.fillText(tiles ? src.attr : "", S - 8, S - 10);
+
+    var st = src ? srcStat[src.id] : null;
+    if (!org) info.textContent = "Подложка карты появится после первой точки GPS. В режиме датчиков включите «GPS раз в 5 секунд».";
+    else if (!src) info.textContent = ($("tiles").value === "none" ? "Карта выключена, показан только трек." : "Серверы карт недоступны из вашей сети, показан только трек.");
+    else info.textContent = "Карта: " + src.name + (st.ok ? "" : st.err ? " · плитки не загружаются" : " · загрузка…") + (($("tiles").value || "auto") === "auto" && SRC[0].id !== src.id ? " (предыдущие источники не открылись)" : "");
+  }
+
+  /* ---------- демо ---------- */
+  function demoStep(dt) {
+    demoT += dt;
+    var t = demoT % 40, target;
+    if (t < 10) target = 60 * (t / 10);
+    else if (t < 18) target = 60 + 8 * Math.sin((t - 10) * 0.9);
+    else if (t < 26) target = 60 + 30 * ((t - 18) / 8);
+    else if (t < 31) target = 90 - 10 * ((t - 26) / 5);
+    else target = Math.max(0, 80 * (1 - (t - 31) / 8));
+    var ms = target / 3.6;
+    accMag = Math.abs(ms - speed) / Math.max(dt, 0.016);
+    speed += (ms - speed) * Math.min(1, dt * 4); sSpeed = speed;
+    H = (20 + 70 * Math.sin(demoT / 9)) * D; Hinit = true;
+    var st = speed * dt * 0.25;   // карта демо уменьшена, чтобы петля уместилась
+    posE += st * Math.sin(H); posN += st * Math.cos(H); dist += speed * dt; addPoint();
+  }
+
+  /* ---------- отрисовка ---------- */
+  function headingNow() { return Hinit ? ((H / D) % 360 + 360) % 360 : null; }
+
+  var prev = performance.now(), diagT = 0, mapT = 0;
+  function frame(now) {
+    var dt = Math.min((now - prev) / 1000, 0.1); prev = now;
+    if (mode === "demo") demoStep(dt);
+    var rev = mode === "inertial" && sSpeed < -0.3;
+    var kmh = mode === "off" ? 0 : speed * 3.6;
+    shown += (kmh - shown) * Math.min(1, dt * 10);
+    var c = Math.max(0, Math.min(MAX, shown));
+    needle.setAttribute("transform", "rotate(" + (A0 + SWEEP * c / MAX + 90) + " " + CX + " " + CY + ")");
+    fill.setAttribute("stroke-dasharray", (c / MAX * 100) + " 100");
+    digits.textContent = String(Math.round(shown));
+    digits.setAttribute("class", rev ? "digits rev" : "digits");
+    unitEl.textContent = rev ? "км/ч · назад" : "км/ч";
+    if (shown > peak) peak = shown;
+    peakEl.textContent = String(Math.round(peak));
+    accEl.textContent = accMag.toFixed(1);
+    var hd = headingNow();
+    hdgEl.textContent = hd == null ? "—" : Math.round(hd) + "°";
+    sideEl.textContent = hd == null ? "" : SIDES[Math.round(hd / 45) % 8];
+    diagT += dt; mapT += dt;
+    if (diagT > 0.25) {
+      diagT = 0;
+      if (mode === "inertial") {
+        var gs = gpsStill && (performance.now() - gps.t < 3500);
+        diag.textContent = "разброс " + accStd.toFixed(3) + " (порог " + zAcc.toFixed(3) + ") м/с² · вращение " + gyroRms.toFixed(3) + " рад/с · покой: " + (still ? (gs ? "да, по GPS" : "да") : "нет") + " · ноль " + len(bb).toFixed(2) + " м/с²" + (gpsInfo ? " · GPS: " + gpsInfo : "");
+      }
+    }
+    if (mapT > 0.2 && !$("panel-map").hidden) {
+      mapT = 0;
+      $("dist").textContent = dist < 1000 ? String(Math.round(dist)) : (dist / 1000).toFixed(2);
+      $("distu").textContent = dist < 1000 ? "м" : "км";
+      $("hdg2").textContent = hd == null ? "—" : Math.round(hd) + "°";
+      $("npts").textContent = String(track.length);
+      drawMap();
+    }
+    requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
 
-/* ---------- вкладки ---------- */
-function showTab(n){
-  var m=n==="map";$("panel-map").hidden=!m;$("panel-speed").hidden=m;
-  $("tab-map").setAttribute("aria-selected",m?"true":"false");
-  $("tab-speed").setAttribute("aria-selected",m?"false":"true");
-  if(m){setTimeout(initLeaflet,50);setTimeout(updateMapTrack,100)}
-}
-$("tab-speed").addEventListener("click",function(){showTab("speed")});
-$("tab-map").addEventListener("click",function(){showTab("map")});
-
-/* ---------- кнопки ---------- */
-$("start").addEventListener("click",async function(){
-  if(mode==="inertial"||mode==="demo"){goOff("Остановлено.",false);return}
-  stopAll();resetMotion();resetHeading();clearTrack();
-  gU=null;w=[0,0,0];lastG=0;lastLinMag=0;clk=0;gyroMag=0;gyroRms=0;accStd=0;
-  clearHave();mode="inertial";syncUi();setBadge("Запуск","");
-  if(!window.isSecureContext){goOff(HTTPS_MSG,true);return}
-  say("Запускаю датчики…");await startMotion();
-});
-$("pause").addEventListener("click",function(){
-  if(mode!=="inertial"&&mode!=="demo")return;
-  paused=!paused;
-  if(paused){vb=[0,0,0];speed=0;shown=0;quietT=0;stillT=0}
-  syncUi();refreshStatus();
-  say(paused?"Пауза: датчики работают, скорость заморожена.":"Продолжаю: датчики уже прогреты, заново калибровать не нужно.");
-});
-$("reset").addEventListener("click",function(){
-  vb=[0,0,0];fb=[0,0,0];speed=0;shown=0;peak=0;quietT=0;stillT=0;
-  say("Сброшено: скорость, пик и трек обнулены. Датчики продолжают работать.");
-});
-$("demo").addEventListener("click",function(){
-  if(mode==="demo"){goOff("Демо остановлено.",false);return}
-  stopAll();resetMotion();resetHeading();clearTrack();clearHave();mode="demo";syncUi();
-  have.acc=have.gyro=have.ori=have.mag=1;renderPills();setBadge("Демо","");
-  say("Демо: выдуманная поездка, датчики не используются.");
-});
-$("zero").addEventListener("click",function(){
-  if(locked){locked=false;mapRef=0;clearTrack();say("Компас снова включён, север вверху. Трек очищен.")}
-  else{
-    var fwd=bodyForwardFromOrientation();
-    if(!fwd){say("Не удалось определить ориентацию телефона. Положите его ровно и повторите.",true);return}
-    dirB=fwd;if(Hinit)mapRef=H;else{H=0;Hinit=true;mapRef=0}
-    locked=true;say("0° задан: «вперёд» привязано к осям телефона. Задний ход отображается корректно (скорость может быть отрицательной).");
+  /* ---------- вкладки и кнопки ---------- */
+  function showTab(name) {
+    var m = name === "map";
+    $("panel-map").hidden = !m; $("panel-speed").hidden = m;
+    $("tab-map").setAttribute("aria-selected", m ? "true" : "false");
+    $("tab-speed").setAttribute("aria-selected", m ? "false" : "true");
+    if (m) drawMap();
   }
-  syncUi();
-});
-$("clear").addEventListener("click",function(){clearTrack();updateMapTrack();say("Трек очищен.")});
-$("set-pos").addEventListener("click",setManualPosition);
-$("gps-center").addEventListener("click",centerByGps);
+  $("tab-speed").addEventListener("click", function () { showTab("speed"); });
+  $("tab-map").addEventListener("click", function () { showTab("map"); });
 
-/* стартовая инициализация карты при переключении вкладки */
-setTimeout(function(){if(!$("panel-map").hidden){initLeaflet();updateMapTrack()}},500);
+  $("start").addEventListener("click", function () {
+    if (mode === "inertial") { goOff("Датчики остановлены.", false); return; }
+    startInertial();
+  });
+  $("gps").addEventListener("click", function () {
+    if (mode === "gps") { goOff("GPS остановлен.", false); return; }
+    startGps();
+  });
+  $("demo").addEventListener("click", function () {
+    if (mode === "demo") { goOff("Демо остановлено.", false); return; }
+    stopAll(); resetMotion(); resetHeading(); clearTrack(); clearHave(); mode = "demo"; syncUi();
+    have.acc = have.gyro = have.ori = have.mag = have.gps = 1; renderPills();
+    setBadge("Демо", "demo");
+    say("Демо: выдуманная поездка, датчики не используются.");
+  });
 
-syncUi();
+  // «Стоп-ноль»: машина стоит. Обнуляет скорость и запоминает, как выглядит покой именно в этой машине.
+  $("reset").addEventListener("click", function () {
+    var m = mode;
+    vb = [0, 0, 0]; fb = [0, 0, 0]; bb = [0, 0, 0]; speed = 0; sSpeed = 0; shown = 0; peak = 0; quietT = 0; stillT = 0;
+    if (m === "inertial" && accWin.length >= WIN && gyroRms < 0.1) {
+      zAcc = Math.min(0.2, Math.max(0.03, accStd * 1.6));
+      say("Ноль и покой запомнены, порог вибрации " + zAcc.toFixed(3) + " м/с². Нажимайте, когда машина стоит.");
+    } else say(m === "inertial" ? "Скорость обнулена. Подождите секунду без движения и нажмите ещё раз, чтобы запомнить покой." : "Обнулено.");
+  });
+
+  $("zoomin").addEventListener("click", function () { zoom = Math.min(19, zoom + 1); fitMode = false; syncUi(); drawMap(); });
+  $("zoomout").addEventListener("click", function () { zoom = Math.max(3, zoom - 1); fitMode = false; syncUi(); drawMap(); });
+  $("fit").addEventListener("click", function () { fitMode = !fitMode; syncUi(); drawMap(); });
+  $("up").addEventListener("click", function () { headingUp = !headingUp; syncUi(); drawMap(); });
+  $("clear").addEventListener("click", function () { clearTrack(); say("Трек очищен."); drawMap(); });
+
+  try { var saved = localStorage.getItem("spd-tiles"); if (saved) $("tiles").value = saved; } catch (err) {}
+  $("tiles").addEventListener("change", function () {
+    try { localStorage.setItem("spd-tiles", $("tiles").value); } catch (err) {}
+    SRC.forEach(function (s0) { srcStat[s0.id] = { ok: 0, err: 0 }; });
+    drawMap();
+  });
+
+  $("assist").addEventListener("change", function () {
+    if (mode !== "inertial") return;
+    if (geoId != null && navigator.geolocation) { navigator.geolocation.clearWatch(geoId); geoId = null; }
+    gpsStill = false; gps.still = 0;
+    if ($("assist").checked) watchGps(onFixAssist);
+    else { have.gps = 0; renderPills(); }
+  });
+
 })();
 </script>
 </body>
