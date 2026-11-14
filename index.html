@@ -210,9 +210,11 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
 
   <label class="check"><input type="checkbox" id="assist" checked><span>GPS раз в 5 секунд для координат и остановки. Точка принимается, только если скорость, направление и сдвиг совпали с датчиками (скорость в пределах 5 км/ч). Стрелка идёт по датчикам, без задержки GPS.</span></label>
 
+  <label class="field" for="decl"><span>Склонение, градусов (пусто: автоматически для центра России, около +12)</span><input type="number" id="decl" step="0.5" placeholder="авто"></label>
+
   <p id="msg">«Датчики»: скорость по акселерометру и гироскопу, направление по настоящему компасу телефона, вперёд и назад. «GPS»: скорость по спутникам, отдельно. Нажимайте «Стоп-ноль», когда машина стоит.</p>
   <p class="note" id="diag"></p>
-  <p class="note">Телефон можно ставить под любым углом, в том числе на ребро. Курс берётся только по компасу телефона; поправка на склонение (разница магнитного и истинного севера) сама уточняется по GPS на ровном ходу. Путь по датчикам расходится с реальностью, GPS и дороги возвращают его на место.</p>
+  <p class="note">Телефон можно ставить под любым углом, в том числе на ребро. Курс берётся только по компасу телефона: ни GPS, ни карта его не меняют. Склонение (разница магнитного и истинного севера) задаётся числом в поле выше. Знак и величину скорости (едем вперёд или назад, тормозим или разгоняемся) сверяет доплеровская скорость GPS. Путь по датчикам расходится с реальностью, GPS и дороги возвращают его на место.</p>
 </div>
 
 <script>
@@ -395,9 +397,15 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
     if (have.mag !== 1) { have.mag = 1; renderPills(); }
   }
 
-  // примерное склонение (магнитный север → истинный) для первой точки GPS; дальше уточняется по курсу GPS на ходу
+  // склонение: разница магнитного и истинного севера. Это свойство места на Земле, не курс: из GPS не берётся.
+  // Если поле «Склонение» заполнено, берётся оно, иначе примерное значение для центра европейской России.
+  function declNow(lat, lon) {
+    var v = parseFloat($("decl").value);
+    if (isFinite(v)) return Math.max(-30, Math.min(30, v)) * D;
+    return guessDecl(lat, lon);
+  }
   function guessDecl(lat, lon) {
-    if (lat > 50 && lat < 62 && lon > 28 && lon < 48) return 11.5 * D;   // центр европейской России
+    if (lat > 50 && lat < 62 && lon > 28 && lon < 48) return 12 * D;   // центр европейской России
     return 0;
   }
 
@@ -635,6 +643,28 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
     say("GPS работает, точность ±" + Math.round(c.accuracy) + " м. Обновление раз в секунду, это предел спутникового приёмника.");
   }
 
+  // Знак и величина скорости. Акселерометр не отличает «торможу вперёд» от «разгоняюсь назад»: торможение на ходу
+  // без известной начальной скорости выглядит как разгон. Спутниковая скорость (доплер) даёт величину, а её курс
+  // только выбирает один из двух вариантов оси движения (вперёд или назад). Сам курс на экране по-прежнему только по компасу.
+  function syncVel(c, sp) {
+    if (sp < 2 || c.accuracy > 25 || !gU || !Rabs || performance.now() - lastO > 1500) return;
+    var hOk = c.heading != null && !isNaN(c.heading), spIn = len(vb), axis = null, dirB = null;
+    if (spIn > 0.5) axis = unit(vb); else if (fwdB) axis = fwdB;
+    if (hOk) {                                       // направление по GPS в осях телефона: мир (магнитный) -> телефон через Rabs
+      var th = c.heading * D - compOff, wv = [Math.sin(th), Math.cos(th), 0];
+      var bx = Rabs[0][0] * wv[0] + Rabs[1][0] * wv[1], by = Rabs[0][1] * wv[0] + Rabs[1][1] * wv[1], bz = Rabs[0][2] * wv[0] + Rabs[1][2] * wv[1];
+      dirB = unit(horiz([bx, by, bz], gU));
+    }
+    var res = "";
+    if (axis && dirB) {
+      var cs = dot(axis, dirB);
+      if (cs < -0.5) { vb = scl(axis, -sp); hRE = hRN = 0; res = "знак исправлен: ехали в другую сторону"; }
+      else if (Math.abs(sp - spIn) > 2 * GPS_TOL && cs > 0.3) { vb = scl(axis, sp); res = "скорость сверена"; }
+    } else if (!axis && dirB) { vb = scl(dirB, sp); hRE = hRN = 0; res = "начальная скорость по GPS"; }
+    else if (axis && !dirB && Math.abs(sp - spIn) > 2 * GPS_TOL && spIn > 0.5) { vb = scl(axis, sp); res = "скорость сверена"; }
+    if (res) { gpsInfo = res; quietT = 0; }
+  }
+
   // «GPS раз в 5 секунд» в режиме датчиков: не источник скорости, а проверка и поправка координат
   function onFixAssist(p) {
     var c = p.coords, now = performance.now();
@@ -644,6 +674,7 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
     if (hasSp && c.accuracy <= 30) {                        // остановку смотрим по каждой точке
       if (sp < 0.4) { gps.still++; gpsStill = gps.still >= 2; } else { gps.still = 0; gpsStill = false; }
     }
+    if (hasSp) syncVel(c, sp);                     // знак и величину скорости проверяем на каждой точке: ошибка тут растёт за секунды
     if (now - gpsEval < GPS_PERIOD - 200) return;  // координаты проверяем раз в 5 секунд
     if (c.accuracy > 20) { gpsInfo = "GPS ±" + Math.round(c.accuracy) + " м, пропуск"; return; }
     gpsEval = now;
@@ -653,20 +684,12 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
       var g0 = toEN(c);
       gpsPrev = { t: now, E: posE, N: posN, gE: g0[0], gN: g0[1] };
       gpsPrevSp = hasSp ? sp : null; gpsInfo = "привязка к карте";
-      if (!declSet) { compOff = guessDecl(c.latitude, c.longitude); declSet = true; }
+      if (!declSet) { compOff = declNow(c.latitude, c.longitude); declSet = true; }
       return;
     }
     if (!hasSp) { gpsInfo = "GPS не даёт скорость, сверка пропущена"; return; }
     var g = toEN(c), spIn = speed, why = [];
-    // склонение: разницу магнитного и истинного севера (и влияние железа машины) учим по курсу GPS на ровном ходу;
-    // курс сам по-прежнему только по компасу
-    var rawOk = hRE * hRE + hRN * hRN > 0.25;
-    if (sp > 3 && spIn > 3 && c.accuracy <= 12 && c.heading != null && !isNaN(c.heading) && gyroMag < 0.15 && Math.abs(sp - spIn) < 2 * GPS_TOL && rawOk) {
-      var er = wrapPi(c.heading * D - Math.atan2(hRE, hRN));
-      compOff += wrapPi(er - compOff) * 0.35;
-      compOff = Math.max(-0.9, Math.min(0.9, compOff));
-      H = Math.atan2(hRE, hRN) + compOff;
-    }
+    // курс GPS здесь только сверяется с компасом (принять или отклонить точку), курс он не меняет
     var trav = Hinit ? H : null;
     if (Math.abs(sp - spIn) > GPS_TOL) why.push("скорость");
     if (sp > GPS_TOL && spIn > GPS_TOL && trav != null && c.heading != null && !isNaN(c.heading) && Math.abs(wrapPi(c.heading * D - trav)) > 25 * D) why.push("направление");
@@ -690,10 +713,6 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
       if ((gpsRej >= 6 || (gpsRej >= 2 && spIn < 0.5)) && sp > 2 && c.accuracy <= 10 && stable) {
         if (len(vb) > 0.3) vb = scl(unit(vb), sp);
         posE = g[0]; posN = g[1];
-        if (rawOk && c.heading != null && !isNaN(c.heading)) {   // компас и GPS долго расходятся: пересчитываем поправку целиком
-          compOff = Math.max(-0.9, Math.min(0.9, wrapPi(c.heading * D - Math.atan2(hRE, hRN))));
-          H = Math.atan2(hRE, hRN) + compOff;
-        }
         gpsRej = 0; gpsInfo = "пересинхронизация по GPS";
         gpsPrev = { t: now, E: posE, N: posN, gE: g[0], gN: g[1] };
       }
@@ -1014,11 +1033,7 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
       snap.way = best.o; snap.on = true; snap.offT = 0; snap.name = best.o.name;
       var k = 1 - Math.exp(-dt / 1.0);
       posE += best.fx * k; posN += best.fy * k;                       // положение стягивается к оси дороги
-      if (speed > 2) {                                                // курс стягивается к направлению дороги: дрожь компаса вне перекрёстков не принимается
-        var th2 = best.th, dh = wrapPi(th2 - H);
-        if (Math.abs(dh) > Math.PI / 2) { th2 += Math.PI; dh = wrapPi(th2 - H); }
-        if (Math.abs(dh) < 0.8) { var kh = 1 - Math.exp(-dt / 0.6), hh = Math.atan2(hRE, hRN) + dh * kh; hRE = Math.sin(hh); hRN = Math.cos(hh); H = hh + compOff; }
-      }
+                                                                      // курс карта не трогает: он только по компасу
     } else {
       snap.offT += dt;
       if (snap.offT > 4) { snap.on = false; snap.way = null; snap.name = ""; }   // съехали с дороги: свободное движение, пока не вернёмся
@@ -1380,6 +1395,12 @@ input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-
     if (dl.busy) { dl.cancel = true; }
     if (!idb) idb = await idbOpen();
     await idbClear(); resetMapData(); dlSay("Скачанная карта удалена.", false); drawMap();
+  });
+
+  try { var sd0 = localStorage.getItem("spd-decl"); if (sd0 !== null) $("decl").value = sd0; } catch (err) {}
+  $("decl").addEventListener("input", function () {
+    try { localStorage.setItem("spd-decl", $("decl").value); } catch (err) {}
+    if (org) compOff = declNow(org.lat, org.lon);
   });
 
   $("assist").addEventListener("change", function () {
