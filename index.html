@@ -16,6 +16,11 @@
   --accent: #0b8f9c;
   --needle: #d6342a;
   --warn: #b26a00;
+  --land: #e8ebe4;
+  --road: #ffffff;
+  --roadmajor: #f2bf62;
+  --roadline: #c3cac6;
+  --water: #a8d1e6;
   --font-num: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-text: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -23,12 +28,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa;
     --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a;
+    --land: #10181d; --road: #3a4b56; --roadmajor: #a67b34; --roadline: #0a1014; --water: #1b394b;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0e1418; --panel: #162026; --fg: #e8eef1; --muted: #8fa0aa;
   --line: #2a3943; --accent: #42d0db; --needle: #ff5a4d; --warn: #f0b24a;
+  --land: #10181d; --road: #3a4b56; --roadmajor: #a67b34; --roadline: #0a1014; --water: #1b394b;
   color-scheme: dark;
 }
 [hidden] { display: none !important; }
@@ -93,6 +100,14 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
 #msg.err { color: var(--warn); }
 .note { margin: 0; font-size: .82rem; color: var(--muted); }
 #diag { font-variant-numeric: tabular-nums; min-height: 1.3em; }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+details > .col { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.bbox { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+input[type="number"] { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: none; width: 100%; box-sizing: border-box; min-width: 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+input[type="file"] { font: inherit; font-size: .85rem; color: var(--muted); max-width: 100%; }
+.bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); }
 </style>
 </head>
 <body>
@@ -128,6 +143,10 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
   </section>
 
   <section id="panel-map" class="panel" role="tabpanel" aria-labelledby="tab-map" hidden>
+    <div class="row">
+      <button id="carmode" type="button">Режим: Машина</button>
+    </div>
+    <p class="note" id="modeinfo"></p>
     <div class="mapbox"><canvas id="map" aria-label="Карта движения"></canvas></div>
     <p class="note" id="mapinfo"></p>
     <div class="stats">
@@ -146,7 +165,8 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     </div>
     <label class="field" for="tiles"><span>Источник карты</span>
       <select id="tiles">
-        <option value="auto">Авто: по очереди, что открывается</option>
+        <option value="auto">Авто: сначала скачанная, потом из сети</option>
+        <option value="offline">Скачанная карта (без интернета)</option>
         <option value="osm">OpenStreetMap</option>
         <option value="osmfr">OSM Франция</option>
         <option value="osmde">OSM Германия</option>
@@ -154,6 +174,31 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
         <option value="none">Без карты, только трек</option>
       </select>
     </label>
+
+    <details id="offl">
+      <summary>Скачать карту района в телефон</summary>
+      <div class="col">
+        <p class="note">Дороги, реки, озёра и названия населённых пунктов скачиваются один раз и остаются в памяти телефона. После этого интернет для карты не нужен. Скачивайте на Wi-Fi: район по умолчанию весит десятки мегабайт.</p>
+        <div class="bbox">
+          <label class="field">Юг, широта<input type="number" id="bS" step="0.01" value="55.80"></label>
+          <label class="field">Север, широта<input type="number" id="bN" step="0.01" value="57.05"></label>
+          <label class="field">Запад, долгота<input type="number" id="bW" step="0.01" value="36.95"></label>
+          <label class="field">Восток, долгота<input type="number" id="bE" step="0.01" value="37.95"></label>
+        </div>
+        <div class="row">
+          <button id="dlpre" type="button">Дубна — Кимры — Талдом — север Москвы</button>
+          <button id="dlme" type="button">Вокруг меня, 15 км</button>
+        </div>
+        <div class="row">
+          <button id="dlgo" class="primary" type="button">Скачать карту</button>
+          <button id="dlsite" type="button">Файл map-data.json с сайта</button>
+        </div>
+        <label class="field">Файл map-data.json с компьютера<input type="file" id="dlfile" accept=".json,application/json"></label>
+        <div class="bar"><i id="dlbar"></i></div>
+        <p class="note" id="dlinfo"></p>
+        <div class="row"><button id="dlclr" type="button">Удалить скачанную карту</button></div>
+      </div>
+    </details>
   </section>
 
   <div class="row">
@@ -165,9 +210,9 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
 
   <label class="check"><input type="checkbox" id="assist" checked><span>GPS раз в 5 секунд для координат и остановки. Точка принимается, только если скорость, направление и сдвиг совпали с датчиками (скорость в пределах 5 км/ч). Стрелка идёт по датчикам, без задержки GPS.</span></label>
 
-  <p id="msg">«Датчики»: скорость по акселерометру и гироскопу, едет вперёд и назад. «GPS»: скорость по спутникам, отдельно. Нажимайте «Стоп-ноль», когда машина стоит.</p>
+  <p id="msg">«Датчики»: скорость по акселерометру и гироскопу, направление по настоящему компасу телефона, вперёд и назад. «GPS»: скорость по спутникам, отдельно. Нажимайте «Стоп-ноль», когда машина стоит.</p>
   <p class="note" id="diag"></p>
-  <p class="note">Телефон можно ставить под любым углом, в том числе на ребро: ось «вперёд» находится сама по первому разгону. Карта по датчикам считается по счислению пути и расходится с реальностью, GPS возвращает её на место.</p>
+  <p class="note">Телефон можно ставить под любым углом, в том числе на ребро. Курс берётся только по компасу телефона; поправка на склонение (разница магнитного и истинного севера) сама уточняется по GPS на ровном ходу. Путь по датчикам расходится с реальностью, GPS и дороги возвращают его на место.</p>
 </div>
 
 <script>
@@ -251,29 +296,32 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
   var vb = [0, 0, 0];                  // скорость в осях телефона, м/с (только горизонталь)
   var bb = [0, 0, 0];                  // смещение нуля акселерометра, учится в покое
   var fb = [0, 0, 0];                  // сглаженное ускорение
-  var fwdB = null, revDist = 0;        // ось «вперёд» машины в осях телефона
-  var sSpeed = 0;                      // скорость со знаком: минус — едем назад
+  var fwdB = null;                     // ось движения в осях телефона (вперёд или назад, не важно): гасит боковую качку
+  var sSpeed = 0;                      // то же, что speed: направление теперь даёт компас, а не знак скорости
   var accWin = [], gyroWin = [];
   var stillT = 0, still = false, quietT = 0, decelT = -1e9, accStd = 0, gyroRms = 0, gyroMag = 0;
-  var gpsStill = false, gps = { t: 0, acc: 999, still: 0 }, gpsEval = 0, gpsPrev = null, gpsRej = 0, gpsPrevSp = null, gpsInfo = "";
+  var gpsStill = false, gps = { t: 0, acc: 999, still: 0 }, gpsEval = -1e9, gpsPrev = null, gpsRej = 0, gpsPrevSp = null, gpsInfo = "";
 
   var speed = 0, shown = 0, peak = 0, accMag = 0;
-  var Rabs = null, lastO = 0, compOff = 0;   // компас: ориентация к сторонам света и его поправка по GPS
-  var H = 0, Hinit = false, headingUp = false;   // курс машины (рад, по часовой от севера)
+  var Rabs = null, lastO = 0, compOff = 0;   // компас: ориентация телефона к сторонам света; поправка на склонение (магнитный север → истинный)
+  var H = 0, Hinit = false, headingUp = false;   // курс движения (рад, по часовой от истинного севера) = компас + склонение
+  var hRE = 0, hRN = 0, declSet = false, compOk = false;   // сглаженное направление скорости по компасу (без склонения)
   var posE = 0, posN = 0, dist = 0, track = [], lastPt = null, org = null;
   var mode = "off";                    // off | inertial | gps | demo
   var sensors = [], eventsOn = false, geoId = null, waitTimer = null, demoT = 0, prevFix = null;
   var zoom = 16, fitMode = false;
+  var carMode = true, snap = { way: null, on: false, offT: 0, name: "" }, matchT = 0;   // «Машина»: по дорогам; «Свободная ходьба»: куда угодно
+  try { if (localStorage.getItem("spd-car") === "0") carMode = false; } catch (err) {}
 
   var HTTPS_MSG = "Страница открыта по адресу " + location.protocol + "//, а браузер отдаёт датчики и геолокацию только по HTTPS (или с localhost). Откройте страницу с хостинга по https://.";
 
-  function clearTrack() { track = []; lastPt = null; posE = posN = 0; dist = 0; org = null; gpsPrev = null; gpsEval = 0; gpsRej = 0; }
+  function clearTrack() { track = []; lastPt = null; posE = posN = 0; dist = 0; org = null; gpsPrev = null; gpsEval = -1e9; gpsRej = 0; snap.way = null; snap.on = false; snap.offT = 0; snap.name = ""; }
   function resetMotion() {
-    vb = [0, 0, 0]; bb = [0, 0, 0]; fb = [0, 0, 0]; fwdB = null; revDist = 0; sSpeed = 0; speed = 0; peak = 0; accMag = 0; lastA = 0;
+    vb = [0, 0, 0]; bb = [0, 0, 0]; fb = [0, 0, 0]; fwdB = null; sSpeed = 0; speed = 0; peak = 0; accMag = 0; lastA = 0;
     stillT = 0; still = false; quietT = 0; decelT = -1e9; accWin = []; gyroWin = []; demoT = 0; prevFix = null;
     gpsStill = false; gps.still = 0; gps.t = 0; gpsPrevSp = null; gpsInfo = "";
   }
-  function resetHeading() { H = 0; Hinit = false; Rabs = null; }
+  function resetHeading() { H = 0; Hinit = false; Rabs = null; hRE = hRN = 0; compOk = false; }
 
   function syncUi() {
     $("start").textContent = mode === "inertial" ? "Остановить" : "Датчики";
@@ -285,6 +333,11 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     $("up").className = headingUp ? "on" : "";
     $("fit").textContent = fitMode ? "Следовать" : "Весь трек";
     $("fit").className = fitMode ? "on" : "";
+    $("carmode").textContent = carMode ? "Режим: Машина (по дорогам)" : "Режим: Свободная ходьба";
+    $("carmode").className = carMode ? "on" : "";
+    $("modeinfo").textContent = carMode
+      ? "Машина: точка прилипает к дороге из скачанной карты, повороты и дрожь курса вне перекрёстков не принимаются. Съехали с дороги: привязка сама отключается и включается, когда вернётесь."
+      : "Свободная ходьба: точка идёт куда угодно, к дорогам не привязывается.";
   }
 
   function stopSensors() {
@@ -330,28 +383,22 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
             [-cB * sG, sB, cB * cG]];
   }
 
-  // сырой курс оси «вперёд» по компасу, без поправки
-  function compassHeading() {
-    if (!Rabs || !fwdB) return null;
-    var m = Rabs;
-    var e = m[0][0] * fwdB[0] + m[0][1] * fwdB[1] + m[0][2] * fwdB[2];
-    var n = m[1][0] * fwdB[0] + m[1][1] * fwdB[1] + m[1][2] * fwdB[2];
-    if (Math.sqrt(e * e + n * n) < 0.3) return null;
-    return Math.atan2(e, n);
-  }
-
+  // Rabs: матрица «оси телефона → восток, север, верх». Её даёт операционная система по магнитометру,
+  // акселерометру и гироскопу вместе, поэтому курс настоящий, без условного нуля.
   function onOrientEv(ev) {
     if (ev.alpha == null || ev.beta == null || ev.gamma == null) return;
     var al = ev.alpha, abs = ev.type === "deviceorientationabsolute" || ev.absolute === true;
     if (ev.webkitCompassHeading != null) { al = 360 - ev.webkitCompassHeading; abs = true; }
     if (!abs) return;
     Rabs = eulerToMat(al, ev.beta, ev.gamma);
+    lastO = performance.now();
     if (have.mag !== 1) { have.mag = 1; renderPills(); }
-    var tn = performance.now(), dtO = lastO ? Math.min((tn - lastO) / 1000, 0.2) : 0; lastO = tn;
-    if (mode === "inertial" && Hinit && fwdB && dtO > 0) {
-      var Hm = compassHeading();
-      if (Hm != null) H += wrapPi(Hm + compOff - H) * Math.min(1, dtO * 0.08);   // медленно подтягиваем гироскопный курс к компасу
-    }
+  }
+
+  // примерное склонение (магнитный север → истинный) для первой точки GPS; дальше уточняется по курсу GPS на ходу
+  function guessDecl(lat, lon) {
+    if (lat > 50 && lat < 62 && lon > 28 && lon < 48) return 11.5 * D;   // центр европейской России
+    return 0;
   }
 
   /* ---------- ядро режима датчиков ---------- */
@@ -424,7 +471,6 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     // «стоим» по GPS принимаем, только если акселерометр согласен: GPS отстаёт на секунду и в начале разгона ещё говорит «стоим»
     var gs = gpsStill && (performance.now() - gps.t < 3500) && len(fb) < 0.35 && lastLinMag < 0.5;
     still = stillT > need || gs;
-    if (stillT > 3) revDist = 0;
 
     // в покое учим смещение нуля
     if (still) {
@@ -463,31 +509,35 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
 
     spd = len(vb);
 
-    // ось «вперёд»: по первому заметному движению, дальше уточняется по ходу вперёд
+    // ось движения в осях телефона: по первому заметному ходу, дальше следует за скоростью (вперёд или назад)
     if (!fwdB) {
       if (spd > 1.5) fwdB = unit(vb);
-    } else {
-      var s1 = dot(vb, fwdB);
-      if (s1 > 2) fwdB = unit(horiz(unit([fwdB[0] + 0.02 * (vb[0] / spd - fwdB[0]), fwdB[1] + 0.02 * (vb[1] / spd - fwdB[1]), fwdB[2] + 0.02 * (vb[2] / spd - fwdB[2])]), gU));
-      // назад ездят недолго и медленно; если дольше или быстрее, значит ось «вперёд» была выбрана наоборот
-      if (s1 < -0.3) {
-        revDist += -s1 * dt;
-        if (revDist > 30 || -s1 > 6) { fwdB = scl(fwdB, -1); if (Hinit) H += Math.PI; revDist = 0; }
-      } else if (s1 > 0.5) revDist = 0;
+    } else if (spd > 1.5) {
+      var sg = dot(vb, fwdB) >= 0 ? 1 : -1;
+      fwdB = unit(horiz(unit([fwdB[0] + 0.02 * (sg * vb[0] / spd - fwdB[0]), fwdB[1] + 0.02 * (sg * vb[1] / spd - fwdB[1]), fwdB[2] + 0.02 * (sg * vb[2] / spd - fwdB[2])]), gU));
     }
-    sSpeed = fwdB ? dot(vb, fwdB) : spd;
-    speed = Math.abs(sSpeed);
+    speed = spd; sSpeed = spd;
 
-    // курс: гироскоп крутит курс вместе с машиной, компас и GPS его подправляют
-    if (Hinit) H -= dot(w, gU) * dt;
-    else if (fwdB) {
-      var Hm = compassHeading();
-      H = Hm != null ? Hm + compOff : 0; Hinit = true;
-    }
-    if (Hinit && speed > 0.3) {
-      var ds = sSpeed * dt;                        // назад ds отрицательный, и точка идёт в обратную сторону
-      posE += ds * Math.sin(H); posN += ds * Math.cos(H); dist += Math.abs(ds);
-      addPoint();
+    // курс и путь по настоящему компасу: скорость из осей телефона переводим в стороны света матрицей ориентации.
+    // Едем назад, значит скорость смотрит назад и точка идёт назад: ни флагов «вперёд/назад», ни условного нуля.
+    compOk = !!Rabs && (performance.now() - lastO < 1500);
+    if (compOk) {
+      var m = Rabs;
+      var ve = m[0][0] * vb[0] + m[0][1] * vb[1] + m[0][2] * vb[2];
+      var vn = m[1][0] * vb[0] + m[1][1] * vb[1] + m[1][2] * vb[2];
+      if (spd > 0.8) {                             // курс берём только на ходу, на малой скорости направление шумит
+        var kc = 1 - Math.exp(-dt / 0.7), nn = Math.sqrt(ve * ve + vn * vn) || 1;
+        if (hRE === 0 && hRN === 0) { hRE = ve / nn; hRN = vn / nn; }
+        else { hRE += (ve / nn - hRE) * kc; hRN += (vn / nn - hRN) * kc; }
+        H = Math.atan2(hRE, hRN) + compOff; Hinit = true;
+      }
+      if (Hinit && spd > 0.3) {
+        var cd = Math.cos(compOff), sd = Math.sin(compOff);   // склонение поворачивает магнитные стороны света в истинные
+        posE += (ve * cd + vn * sd) * dt; posN += (vn * cd - ve * sd) * dt; dist += spd * dt;
+        matchT += dt;
+        if (carMode && org && ways.length && matchT >= 0.2) { var dm = matchT; matchT = 0; matchRoad(dm); }
+        addPoint();
+      }
     }
   }
 
@@ -590,9 +640,8 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     var c = p.coords, now = performance.now();
     if (have.gps !== 1) { have.gps = 1; renderPills(); }
     gps.t = now; gps.acc = c.accuracy;
-    var sp = c.speed;
-    if (sp == null || isNaN(sp)) return;
-    if (c.accuracy <= 30) {                        // остановку смотрим по каждой точке
+    var sp = c.speed, hasSp = !(sp == null || isNaN(sp));
+    if (hasSp && c.accuracy <= 30) {                        // остановку смотрим по каждой точке
       if (sp < 0.4) { gps.still++; gpsStill = gps.still >= 2; } else { gps.still = 0; gpsStill = false; }
     }
     if (now - gpsEval < GPS_PERIOD - 200) return;  // координаты проверяем раз в 5 секунд
@@ -603,11 +652,22 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
       org = { lat: c.latitude - posN / (RE * D), lon: c.longitude - posE / (RE * D * Math.cos(c.latitude * D)) };
       var g0 = toEN(c);
       gpsPrev = { t: now, E: posE, N: posN, gE: g0[0], gN: g0[1] };
-      gpsPrevSp = sp; gpsInfo = "привязка к карте";
+      gpsPrevSp = hasSp ? sp : null; gpsInfo = "привязка к карте";
+      if (!declSet) { compOff = guessDecl(c.latitude, c.longitude); declSet = true; }
       return;
     }
-    var g = toEN(c), spIn = Math.abs(sSpeed), why = [];
-    var trav = Hinit ? H + (sSpeed < 0 ? Math.PI : 0) : null;
+    if (!hasSp) { gpsInfo = "GPS не даёт скорость, сверка пропущена"; return; }
+    var g = toEN(c), spIn = speed, why = [];
+    // склонение: разницу магнитного и истинного севера (и влияние железа машины) учим по курсу GPS на ровном ходу;
+    // курс сам по-прежнему только по компасу
+    var rawOk = hRE * hRE + hRN * hRN > 0.25;
+    if (sp > 3 && spIn > 3 && c.accuracy <= 12 && c.heading != null && !isNaN(c.heading) && gyroMag < 0.15 && Math.abs(sp - spIn) < 2 * GPS_TOL && rawOk) {
+      var er = wrapPi(c.heading * D - Math.atan2(hRE, hRN));
+      compOff += wrapPi(er - compOff) * 0.35;
+      compOff = Math.max(-0.9, Math.min(0.9, compOff));
+      H = Math.atan2(hRE, hRN) + compOff;
+    }
+    var trav = Hinit ? H : null;
     if (Math.abs(sp - spIn) > GPS_TOL) why.push("скорость");
     if (sp > GPS_TOL && spIn > GPS_TOL && trav != null && c.heading != null && !isNaN(c.heading) && Math.abs(wrapPi(c.heading * D - trav)) > 25 * D) why.push("направление");
     if (gpsPrev) {
@@ -622,21 +682,18 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
 
     if (!why.length) {
       posE += 0.7 * (g[0] - posE); posN += 0.7 * (g[1] - posN);
-      if (sp > 3 && Hinit && c.heading != null && !isNaN(c.heading)) {
-        H += wrapPi(c.heading * D - trav) * 0.5;   // курс по GPS
-        var Hm = compassHeading();
-        if (Hm != null) compOff += wrapPi((H - Hm) - compOff) * 0.3;   // и поправка компаса, чтобы без GPS он не врал
-      }
       gpsRej = 0; gpsInfo = "принята";
       gpsPrev = { t: now, E: posE, N: posN, gE: g[0], gN: g[1] };   // сравниваем дальше только с принятыми точками
     } else {
       gpsRej++; gpsInfo = "отклонена: " + why.join(", ");
       // долго не сходимся и GPS уверенно движется: датчики потеряли ход, пересинхронизация
       if ((gpsRej >= 6 || (gpsRej >= 2 && spIn < 0.5)) && sp > 2 && c.accuracy <= 10 && stable) {
-        var dir = fwdB ? scl(fwdB, sSpeed < 0 ? -1 : 1) : null;
-        if (dir) vb = scl(dir, sp);
+        if (len(vb) > 0.3) vb = scl(unit(vb), sp);
         posE = g[0]; posN = g[1];
-        if (c.heading != null && !isNaN(c.heading)) { H = c.heading * D - (sSpeed < 0 ? Math.PI : 0); Hinit = true; }
+        if (rawOk && c.heading != null && !isNaN(c.heading)) {   // компас и GPS долго расходятся: пересчитываем поправку целиком
+          compOff = Math.max(-0.9, Math.min(0.9, wrapPi(c.heading * D - Math.atan2(hRE, hRN))));
+          H = Math.atan2(hRE, hRN) + compOff;
+        }
         gpsRej = 0; gpsInfo = "пересинхронизация по GPS";
         gpsPrev = { t: now, E: posE, N: posN, gE: g[0], gN: g[1] };
       }
@@ -670,6 +727,7 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
 
   async function startInertial() {
     stopAll(); resetMotion(); resetHeading(); clearTrack();
+    compOff = 0; declSet = false; matchT = 0;
     gU = null; w = [0, 0, 0]; gb = [0, 0, 0]; lastG = 0; lastLinMag = 0; clk = 0; gyroMag = 0; gyroRms = 0; accStd = 0;
     clearHave(); mode = "inertial"; syncUi(); setBadge("Запуск", "");
     if (!window.isSecureContext) { goOff(HTTPS_MSG, true); return; }
@@ -701,6 +759,326 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     }
   }
 
+  /* ---------- офлайн-карта: дороги, вода и названия хранятся в памяти телефона ---------- */
+  var CLS = { motorway: 0, trunk: 0, motorway_link: 0, trunk_link: 0, primary: 1, primary_link: 1, secondary: 2, secondary_link: 2,
+              tertiary: 3, tertiary_link: 3, unclassified: 4, residential: 4, living_street: 4, road: 4, service: 5, track: 6 };
+  var CLS_PX = [4.4, 3.8, 3.2, 2.7, 2.1, 1.5, 1.3];   // толщина линий по классам дорог при масштабе 1
+  var BK = 0.02;                                      // размер клетки быстрого поиска, градусы
+  var MIRRORS = ["https://overpass.openstreetmap.ru/api/interpreter", "https://overpass-api.de/api/interpreter",
+                 "https://overpass.kumi.systems/api/interpreter", "https://lz4.overpass-api.de/api/interpreter"];
+  var ways = [], waters = [], places = [], bkR = {}, bkW = {}, seen = {}, stamp = 0, idb = null, cellsDone = {}, mirrorI = 0;
+  var dl = { busy: false, cancel: false };
+
+  function isClosed(g) { return g.length > 3 && g[0].lat === g[g.length - 1].lat && g[0].lon === g[g.length - 1].lon; }
+  function enc(g) {                                   // [{lat,lon}] в целые 1e-5° со сдвигами от предыдущей точки
+    var out = [], py = 0, px = 0;
+    for (var i = 0; i < g.length; i++) {
+      var y = Math.round(g[i].lat * 1e5), x = Math.round(g[i].lon * 1e5);
+      out.push(y - py, x - px); py = y; px = x;
+    }
+    return out;
+  }
+  function dec(a) {
+    var n = a.length >> 1, la = new Float64Array(n), lo = new Float64Array(n), y = 0, x = 0;
+    for (var i = 0; i < n; i++) { y += a[2 * i]; x += a[2 * i + 1]; la[i] = y / 1e5; lo[i] = x / 1e5; }
+    return { la: la, lo: lo };
+  }
+  function boxOf(o) {
+    var s = 90, n = -90, w0 = 360, e0 = -360;
+    for (var i = 0; i < o.la.length; i++) {
+      if (o.la[i] < s) s = o.la[i]; if (o.la[i] > n) n = o.la[i];
+      if (o.lo[i] < w0) w0 = o.lo[i]; if (o.lo[i] > e0) e0 = o.lo[i];
+    }
+    o.s = s; o.n = n; o.w = w0; o.e = e0;
+  }
+  function put(map, o) {
+    var y0 = Math.floor(o.s / BK), y1 = Math.floor(o.n / BK), x0 = Math.floor(o.w / BK), x1 = Math.floor(o.e / BK);
+    for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) { var k = y * 100000 + x; (map[k] || (map[k] = [])).push(o); }
+  }
+
+  // ответ Overpass в компактный вид (его же делает fetch_map.py на компьютере)
+  function compactFromOverpass(j) {
+    var out = { v: 1, roads: [], places: [], water: [] }, els = j.elements || [], i, m;
+    for (i = 0; i < els.length; i++) {
+      var el = els[i], tg = el.tags || {};
+      if (el.type === "node" && tg.place && tg.name && el.lat != null) out.places.push([tg.place, tg.name, el.lat, el.lon]);
+      else if (el.type === "way" && el.geometry && el.geometry.length > 1) {
+        if (tg.highway && CLS[tg.highway] !== undefined) {
+          var c = CLS[tg.highway];
+          out.roads.push([el.id, c, c <= 3 ? (tg.name || tg.ref || "") : "", enc(el.geometry)]);
+        } else if (tg.waterway) out.water.push([el.id, 0, enc(el.geometry)]);
+        else if (tg.natural === "water") out.water.push([el.id, isClosed(el.geometry) ? 1 : 0, enc(el.geometry)]);
+      } else if (el.type === "relation" && tg.natural === "water" && el.members) {
+        for (m = 0; m < el.members.length; m++) {
+          var mb = el.members[m];
+          if (mb.type === "way" && mb.role !== "inner" && mb.geometry && mb.geometry.length > 1) out.water.push(["m" + mb.ref, 0, enc(mb.geometry)]);
+        }
+      }
+    }
+    return out;
+  }
+
+  function ingest(d) {
+    var i, o, g, r, key, n = 0;
+    for (i = 0; i < (d.roads || []).length; i++) {
+      r = d.roads[i]; key = "r" + r[0];
+      if (seen[key]) continue; seen[key] = 1;
+      g = dec(r[3]); o = { c: r[1], name: r[2], la: g.la, lo: g.lo, st: 0 }; boxOf(o);
+      ways.push(o); put(bkR, o); n++;
+    }
+    for (i = 0; i < (d.water || []).length; i++) {
+      r = d.water[i]; key = "w" + r[0];
+      if (seen[key]) continue; seen[key] = 1;
+      g = dec(r[2]); o = { closed: r[1] === 1, la: g.la, lo: g.lo, st: 0 }; boxOf(o);
+      waters.push(o); put(bkW, o); n++;
+    }
+    for (i = 0; i < (d.places || []).length; i++) {
+      r = d.places[i]; key = "p" + r[1] + "|" + r[2];
+      if (seen[key]) continue; seen[key] = 1;
+      places.push({ k: r[0], name: r[1], lat: r[2], lon: r[3] }); n++;
+    }
+    return n;
+  }
+
+  function resetMapData() { ways = []; waters = []; places = []; bkR = {}; bkW = {}; seen = {}; cellsDone = {}; snap.way = null; snap.on = false; }
+  function statInfo() {
+    return ways.length ? "В памяти: дорог " + ways.length + ", водных линий " + waters.length + ", населённых пунктов " + places.length + "." : "Карты дорог в памяти пока нет.";
+  }
+  function dlSay(text, isErr) { $("dlinfo").textContent = text; $("dlinfo").style.color = isErr ? "var(--warn)" : ""; }
+  function dlBar(p) { $("dlbar").style.width = Math.round(Math.max(0, Math.min(1, p)) * 100) + "%"; }
+
+  /* хранилище в памяти телефона (IndexedDB): одна запись на ячейку 0,2° x 0,2° */
+  function idbOpen() {
+    return new Promise(function (res) {
+      try {
+        var rq = indexedDB.open("spd-map", 1);
+        rq.onupgradeneeded = function () { rq.result.createObjectStore("cells"); };
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { res(null); };
+      } catch (err) { res(null); }
+    });
+  }
+  function idbPut(k, v) {
+    return new Promise(function (res) {
+      if (!idb) { res(false); return; }
+      try {
+        var tx = idb.transaction("cells", "readwrite");
+        tx.objectStore("cells").put(v, k);
+        tx.oncomplete = function () { res(true); };
+        tx.onerror = tx.onabort = function () { res(false); };
+      } catch (err) { res(false); }
+    });
+  }
+  function idbEach(cb) {
+    return new Promise(function (res) {
+      if (!idb) { res(); return; }
+      try {
+        var rq = idb.transaction("cells", "readonly").objectStore("cells").openCursor();
+        rq.onsuccess = function () { var c = rq.result; if (c) { cb(c.key, c.value); c.continue(); } else res(); };
+        rq.onerror = function () { res(); };
+      } catch (err) { res(); }
+    });
+  }
+  function idbClear() {
+    return new Promise(function (res) {
+      if (!idb) { res(); return; }
+      try { var tx = idb.transaction("cells", "readwrite"); tx.objectStore("cells").clear(); tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; } catch (err) { res(); }
+    });
+  }
+  async function loadSaved() {
+    idb = await idbOpen();
+    await idbEach(function (k, v) { try { ingest(JSON.parse(v)); cellsDone[k] = 1; } catch (err) {} });
+    dlSay(statInfo(), false);
+    drawMap();
+  }
+
+  /* скачивание */
+  function overpassQuery(s, w0, n, e) {
+    var b = "(" + s + "," + w0 + "," + n + "," + e + ")";
+    return "[out:json][timeout:120];(" +
+      'way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|track|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$"]' + b + ";" +
+      'way["waterway"~"^(river|stream|canal)$"]' + b + ";" +
+      'way["natural"="water"]' + b + ";" +
+      'relation["natural"="water"]' + b + ");out geom qt;" +
+      'node["place"~"^(city|town|village|hamlet|suburb|locality|isolated_dwelling|allotments|neighbourhood)$"]' + b + ";out body;";
+  }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  async function fetchCell(s, w0, n, e) {
+    var err = "", body = "data=" + encodeURIComponent(overpassQuery(s, w0, n, e));
+    for (var k = 0; k < MIRRORS.length; k++) {
+      var mi = (mirrorI + k) % MIRRORS.length, ctl = new AbortController(), tm = setTimeout(function () { ctl.abort(); }, 150000);
+      try {
+        var rs = await fetch(MIRRORS[mi], { method: "POST", body: body, headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctl.signal });
+        if (!rs.ok) { clearTimeout(tm); err = "HTTP " + rs.status; continue; }
+        var j = await rs.json();
+        clearTimeout(tm);
+        if (j.remark && /error|timed out|out of memory/i.test(j.remark)) { err = "сервер не справился"; continue; }
+        mirrorI = mi;
+        return compactFromOverpass(j);
+      } catch (ex) { clearTimeout(tm); err = String((ex && ex.message) || ex); }
+    }
+    throw new Error(err || "нет ответа");
+  }
+
+  function cellList(S, W, N, E) {
+    var st = 0.2, out = [], iy, ix;
+    for (iy = Math.floor(S / st + 1e-9); iy * st < N - 1e-9; iy++)
+      for (ix = Math.floor(W / st + 1e-9); ix * st < E - 1e-9; ix++) out.push([iy * st, ix * st, iy * st + st, ix * st + st]);
+    return out;
+  }
+  function cellKey(c) { return "c:" + c[0].toFixed(1) + "," + c[1].toFixed(1); }
+  function readBox() { return [+$("bS").value, +$("bW").value, +$("bN").value, +$("bE").value]; }
+  function boxInfo() {
+    var b = readBox();
+    if (!(b[0] < b[2] && b[1] < b[3])) return;
+    var cl = cellList(b[0], b[1], b[2], b[3]), have0 = 0;
+    for (var i = 0; i < cl.length; i++) if (cellsDone[cellKey(cl[i])]) have0++;
+    if (!dl.busy) dlSay("Район: " + cl.length + " ячеек, уже скачано " + have0 + ". " + statInfo(), false);
+  }
+
+  async function downloadMap() {
+    if (dl.busy) { dl.cancel = true; return; }
+    var b = readBox();
+    if (!(b[0] < b[2] && b[1] < b[3]) || b[2] - b[0] > 3 || b[3] - b[1] > 4) { dlSay("Проверьте границы: юг меньше севера, запад меньше востока, не больше 3° на 4°.", true); return; }
+    if (!idb) idb = await idbOpen();
+    var cl = cellList(b[0], b[1], b[2], b[3]), todo = cl.filter(function (c) { return !cellsDone[cellKey(c)]; });
+    if (!todo.length) { dlSay("Этот район уже скачан. " + statInfo(), false); return; }
+    dl.busy = true; dl.cancel = false; $("dlgo").textContent = "Остановить"; $("dlgo").className = "on";
+    var okN = 0, failN = 0, lastErr = "";
+    for (var i = 0; i < todo.length && !dl.cancel; i++) {
+      var c = todo[i];
+      dlSay("Скачиваю ячейку " + (i + 1) + " из " + todo.length + "… " + statInfo(), false); dlBar(i / todo.length);
+      try {
+        var d = await fetchCell(c[0], c[1], c[2], c[3]);
+        ingest(d);
+        await idbPut(cellKey(c), JSON.stringify(d));
+        cellsDone[cellKey(c)] = 1; okN++; failN = 0; drawMap();
+      } catch (ex) {
+        lastErr = String((ex && ex.message) || ex); failN++;
+        if (failN >= 3) break;
+      }
+      await sleep(900);
+    }
+    dl.busy = false; $("dlgo").textContent = "Скачать карту"; $("dlgo").className = "primary"; dlBar(okN / Math.max(1, todo.length));
+    if (failN >= 3) dlSay("Серверы данных не отвечают из вашей сети (" + lastErr + "). Включите VPN и повторите, либо возьмите файл map-data.json с компьютера (скрипт fetch_map.py). Скачано ячеек: " + okN + ". " + statInfo(), true);
+    else if (dl.cancel) dlSay("Остановлено. Скачано ячеек: " + okN + ". " + statInfo(), false);
+    else dlSay("Готово: скачано ячеек " + okN + " из " + todo.length + ". " + statInfo(), false);
+    dl.cancel = false; drawMap();
+  }
+
+  async function importText(text, key) {
+    var d = JSON.parse(text);
+    if (!d || !d.roads) throw new Error("в файле нет данных карты");
+    if (!idb) idb = await idbOpen();
+    var n = ingest(d);
+    await idbPut(key, text);
+    return n;
+  }
+
+  /* привязка к дороге: положение прилипает к ближайшей дороге с подходящим направлением */
+  function connected(cur, lat, lon, kE, kN, fx, fy) {   // есть ли у текущей дороги узел рядом с новой (перекрёсток)
+    for (var k = 0; k < cur.la.length; k++) {
+      var vx = (cur.lo[k] - lon) * kE - fx, vy = (cur.la[k] - lat) * kN - fy;
+      if (vx * vx + vy * vy < 625) return true;
+    }
+    return false;
+  }
+
+  function matchRoad(dt) {
+    var ll = toLL(posE, posN), lat = ll[0], lon = ll[1];
+    var kN = D * RE, kE = kN * Math.cos(lat * D), R = 40, dLa = R / kN, dLo = R / kE;
+    var y0 = Math.floor((lat - dLa) / BK), y1 = Math.floor((lat + dLa) / BK), x0 = Math.floor((lon - dLo) / BK), x1 = Math.floor((lon + dLo) / BK);
+    var best = null, bs = 1e9, st = ++stamp, slow = speed < 1.5, cur = snap.way, x, y, i, j;
+    for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
+      var lst = bkR[y * 100000 + x]; if (!lst) continue;
+      for (i = 0; i < lst.length; i++) {
+        var o = lst[i]; if (o.st === st) continue; o.st = st;
+        if (o.s - dLa > lat || o.n + dLa < lat || o.w - dLo > lon || o.e + dLo < lon) continue;
+        for (j = 0; j + 1 < o.la.length; j++) {
+          var ax = (o.lo[j] - lon) * kE, ay = (o.la[j] - lat) * kN;
+          var abx = (o.lo[j + 1] - lon) * kE - ax, aby = (o.la[j + 1] - lat) * kN - ay, l2 = abx * abx + aby * aby;
+          if (l2 < 1e-6) continue;
+          var t = Math.max(0, Math.min(1, -(ax * abx + ay * aby) / l2)), fx = ax + t * abx, fy = ay + t * aby, dd = Math.sqrt(fx * fx + fy * fy);
+          if (dd > R) continue;
+          var th = Math.atan2(abx, aby), da = Math.abs(wrapPi(th - H)); if (da > Math.PI / 2) da = Math.PI - da;   // дорога двусторонняя: направление с точностью до разворота
+          if (!slow && da > 0.9) continue;                                                                       // шире 50° от курса: это не наша дорога
+          var sc = dd / 10 + (slow ? 0 : (da / 0.5) * (da / 0.5)) + (o.c >= 5 ? 0.3 : 0);
+          if (cur && o !== cur && sc + 0.7 < bs) sc += 0.7 + (connected(cur, lat, lon, kE, kN, fx, fy) ? 0 : 1.2);   // сменить дорогу проще на перекрёстке
+          else if (cur && o !== cur) sc += 0.7;
+          if (sc < bs) { bs = sc; best = { o: o, fx: fx, fy: fy, th: th }; }
+        }
+      }
+    }
+    if (best && bs < 3.2) {
+      snap.way = best.o; snap.on = true; snap.offT = 0; snap.name = best.o.name;
+      var k = 1 - Math.exp(-dt / 1.0);
+      posE += best.fx * k; posN += best.fy * k;                       // положение стягивается к оси дороги
+      if (speed > 2) {                                                // курс стягивается к направлению дороги: дрожь компаса вне перекрёстков не принимается
+        var th2 = best.th, dh = wrapPi(th2 - H);
+        if (Math.abs(dh) > Math.PI / 2) { th2 += Math.PI; dh = wrapPi(th2 - H); }
+        if (Math.abs(dh) < 0.8) { var kh = 1 - Math.exp(-dt / 0.6), hh = Math.atan2(hRE, hRN) + dh * kh; hRE = Math.sin(hh); hRN = Math.cos(hh); H = hh + compOff; }
+      }
+    } else {
+      snap.offT += dt;
+      if (snap.offT > 4) { snap.on = false; snap.way = null; snap.name = ""; }   // съехали с дороги: свободное движение, пока не вернёмся
+    }
+  }
+
+  /* рисование скачанной карты */
+  function drawVector(ctx, cE, cN, mpp, zoomF, S, mr, col) {
+    var kN = D * RE, kE = kN * Math.cos(org.lat * D), half = S * 0.75 * mpp;
+    var a = toLL(cE - half, cN - half), b = toLL(cE + half, cN + half), s0 = a[0], w0 = a[1], n0 = b[0], e0 = b[1];
+    function PX(lon) { return ((lon - org.lon) * kE - cE) / mpp; }
+    function PY(lat) { return -((lat - org.lat) * kN - cN) / mpp; }
+    function hit(o) { return !(o.n < s0 || o.s > n0 || o.e < w0 || o.w > e0); }
+    function trace(o) {
+      var px = 0, py = 0, last = o.la.length - 1;
+      for (var q = 0; q <= last; q++) {
+        var X = PX(o.lo[q]), Y = PY(o.la[q]);
+        if (q === 0) ctx.moveTo(X, Y);
+        else if (q === last || Math.abs(X - px) + Math.abs(Y - py) > 1.2) ctx.lineTo(X, Y);
+        else continue;
+        px = X; py = Y;
+      }
+    }
+    var y0 = Math.floor(s0 / BK), y1 = Math.floor(n0 / BK), x0 = Math.floor(w0 / BK), x1 = Math.floor(e0 / BK), x, y, i, o, lst;
+    if ((y1 - y0 + 1) * (x1 - x0 + 1) > 12000) return;
+    var sc = Math.max(0.6, Math.min(2.4, 0.55 + (zoomF - 11) * 0.22)), st = ++stamp;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.fillStyle = col.water; ctx.strokeStyle = col.water; ctx.lineWidth = Math.max(1.2, 1.6 * sc);
+    for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
+      lst = bkW[y * 100000 + x]; if (!lst) continue;
+      for (i = 0; i < lst.length; i++) {
+        o = lst[i]; if (o.st === st || !hit(o)) continue; o.st = st;
+        ctx.beginPath(); trace(o); if (o.closed) ctx.fill(); ctx.stroke();
+      }
+    }
+    var minC = zoomF < 10.5 ? 1 : zoomF < 12 ? 2 : zoomF < 13.5 ? 3 : zoomF < 15 ? 4 : 6, layers = [[], [], [], [], [], [], []];
+    st = ++stamp;
+    for (y = y0; y <= y1; y++) for (x = x0; x <= x1; x++) {
+      lst = bkR[y * 100000 + x]; if (!lst) continue;
+      for (i = 0; i < lst.length; i++) { o = lst[i]; if (o.st === st) continue; o.st = st; if (o.c <= minC && hit(o)) layers[o.c].push(o); }
+    }
+    for (var cc = 6; cc >= 0; cc--) {
+      var L = layers[cc]; if (!L.length) continue;
+      var wpx = CLS_PX[cc] * sc, pass;
+      for (pass = cc <= 4 ? 0 : 1; pass < 2; pass++) {
+        ctx.strokeStyle = pass === 0 ? col.line : (cc <= 2 ? col.major : col.road);
+        ctx.lineWidth = pass === 0 ? wpx + 1.8 : wpx;
+        ctx.beginPath(); for (i = 0; i < L.length; i++) trace(L[i]); ctx.stroke();
+      }
+    }
+    var PMIN = { city: 6, town: 9, village: 11.5, suburb: 12, hamlet: 13, allotments: 13.5, neighbourhood: 14, locality: 14, isolated_dwelling: 14 }, cnt = 0;
+    ctx.textAlign = "center"; ctx.font = "600 12px Inter, system-ui, sans-serif"; ctx.lineWidth = 3; ctx.strokeStyle = col.panel; ctx.fillStyle = col.fg;
+    for (i = 0; i < places.length && cnt < 90; i++) {
+      var p = places[i], mz = PMIN[p.k];
+      if (mz === undefined || zoomF < mz || p.lat < s0 || p.lat > n0 || p.lon < w0 || p.lon > e0) continue;
+      cnt++; ctx.save(); ctx.translate(PX(p.lon), PY(p.lat)); ctx.rotate(mr);   // подписи остаются прямыми при «курс вверх»
+      ctx.strokeText(p.name, 0, 0); ctx.fillText(p.name, 0, 0); ctx.restore();
+    }
+  }
+
   /* ---------- карта: плитки с автопереключением источника ---------- */
   var SRC = [
     { id: "osm", name: "OpenStreetMap", url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attr: "© OpenStreetMap" },
@@ -714,7 +1092,7 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
   function dead(s0) { var st = srcStat[s0.id]; return st.ok === 0 && st.err >= 4; }
   function activeSource() {
     var v0 = $("tiles").value || "auto", i;
-    if (v0 === "none") return null;
+    if (v0 === "none" || v0 === "offline") return null;
     if (v0 !== "auto") { for (i = 0; i < SRC.length; i++) if (SRC[i].id === v0) return SRC[i]; return null; }
     for (i = 0; i < SRC.length; i++) if (!dead(SRC[i])) return SRC[i];
     return null;
@@ -791,12 +1169,18 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     function X(e) { return (e - cE) / mpp; }
     function Y(n) { return -(n - cN) / mpp; }
 
-    var src = activeSource();
+    var sel = $("tiles").value || "auto";
+    var useOff = !!org && ways.length > 0 && (sel === "auto" || sel === "offline");
+    var src = useOff ? null : activeSource();
     ctx.save();
     ctx.translate(S / 2, S / 2);
     ctx.rotate(-mr);                               // «курс вверх»: направление движения смотрит вверх
 
-    if (org && src) drawTiles(ctx, src, cE, cN, zoomF, S);
+    if (useOff) {
+      ctx.fillStyle = cs.getPropertyValue("--land"); ctx.fillRect(-S, -S, 2 * S, 2 * S);
+      drawVector(ctx, cE, cN, mpp, zoomF, S, mr, { land: cs.getPropertyValue("--land"), road: cs.getPropertyValue("--road"), major: cs.getPropertyValue("--roadmajor"),
+        line: cs.getPropertyValue("--roadline"), water: cs.getPropertyValue("--water"), fg: cFg, panel: cPanel });
+    } else if (org && src) drawTiles(ctx, src, cE, cN, zoomF, S);
     else {
       var step = niceStep(S / 5 * mpp);
       ctx.strokeStyle = cLine; ctx.lineWidth = 1; ctx.beginPath();
@@ -832,12 +1216,15 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     var ax = S - 28, ay = 34, dx = -Math.sin(mr), dy = -Math.cos(mr);
     ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ax - dx * 12, ay - dy * 12); ctx.lineTo(ax + dx * 12, ay + dy * 12); ctx.stroke();
     ctx.textAlign = "center"; ctx.fillText("С", ax + dx * 24, ay + dy * 24 + 4);
-    var tiles = org && src;
+    var tiles = org && (useOff || src);
     ctx.fillStyle = cMuted; ctx.textAlign = "right"; ctx.font = "11px Inter, system-ui, sans-serif";
-    ctx.fillText(tiles ? src.attr : "", S - 8, S - 10);
+    ctx.fillText(useOff ? "© участники OpenStreetMap" : tiles ? src.attr : "", S - 8, S - 10);
 
     var st = src ? srcStat[src.id] : null;
+    var modeTxt = carMode ? (snap.on ? " · по дороге" + (snap.name ? " «" + snap.name + "»" : "") : (ways.length ? " · вне дорог, свободное движение" : "")) : " · свободная ходьба";
     if (!org) info.textContent = "Подложка карты появится после первой точки GPS. В режиме датчиков включите «GPS раз в 5 секунд».";
+    else if (useOff) info.textContent = "Карта: скачанная, работает без интернета" + modeTxt;
+    else if (sel === "offline") info.textContent = "Скачанной карты нет: откройте «Скачать карту района» ниже.";
     else if (!src) info.textContent = ($("tiles").value === "none" ? "Карта выключена, показан только трек." : "Серверы карт недоступны из вашей сети, показан только трек.");
     else info.textContent = "Карта: " + src.name + (st.ok ? "" : st.err ? " · плитки не загружаются" : " · загрузка…") + (($("tiles").value || "auto") === "auto" && SRC[0].id !== src.id ? " (предыдущие источники не открылись)" : "");
   }
@@ -866,7 +1253,7 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
   function frame(now) {
     var dt = Math.min((now - prev) / 1000, 0.1); prev = now;
     if (mode === "demo") demoStep(dt);
-    var rev = mode === "inertial" && sSpeed < -0.3;
+    var rev = false;
     var kmh = mode === "off" ? 0 : speed * 3.6;
     shown += (kmh - shown) * Math.min(1, dt * 10);
     var c = Math.max(0, Math.min(MAX, shown));
@@ -886,7 +1273,7 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
       diagT = 0;
       if (mode === "inertial") {
         var gs = gpsStill && (performance.now() - gps.t < 3500);
-        diag.textContent = "разброс " + accStd.toFixed(3) + " (порог " + zAcc.toFixed(3) + ") м/с² · вращение " + gyroRms.toFixed(3) + " рад/с · покой: " + (still ? (gs ? "да, по GPS" : "да") : "нет") + " · ноль " + len(bb).toFixed(2) + " м/с²" + (gpsInfo ? " · GPS: " + gpsInfo : "");
+        diag.textContent = "разброс " + accStd.toFixed(3) + " (порог " + zAcc.toFixed(3) + ") м/с² · вращение " + gyroRms.toFixed(3) + " рад/с · покой: " + (still ? (gs ? "да, по GPS" : "да") : "нет") + " · ноль " + len(bb).toFixed(2) + " м/с²" + " · компас: " + (compOk ? "ок" : "нет данных") + ", склонение " + (compOff / D).toFixed(0) + "°" + (carMode ? " · " + (snap.on ? "по дороге" : (ways.length ? "вне дорог" : "карты дорог нет")) : " · свободно") + (gpsInfo ? " · GPS: " + gpsInfo : "");
       }
     }
     if (mapT > 0.2 && !$("panel-map").hidden) {
@@ -951,6 +1338,50 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     drawMap();
   });
 
+  $("carmode").addEventListener("click", function () {
+    carMode = !carMode; snap.way = null; snap.on = false; snap.offT = 0; snap.name = "";
+    try { localStorage.setItem("spd-car", carMode ? "1" : "0"); } catch (err) {}
+    syncUi(); drawMap();
+  });
+
+  $("dlgo").addEventListener("click", downloadMap);
+  $("dlpre").addEventListener("click", function () {
+    $("bS").value = "55.80"; $("bN").value = "57.05"; $("bW").value = "36.95"; $("bE").value = "37.95"; boxInfo();
+  });
+  $("dlme").addEventListener("click", function () {
+    if (!navigator.geolocation) { dlSay("Геолокация недоступна.", true); return; }
+    dlSay("Определяю положение…", false);
+    navigator.geolocation.getCurrentPosition(function (p) {
+      var la = p.coords.latitude, lo = p.coords.longitude, dla = 15 / 111.2, dlo = dla / Math.cos(la * D);
+      $("bS").value = (la - dla).toFixed(2); $("bN").value = (la + dla).toFixed(2); $("bW").value = (lo - dlo).toFixed(2); $("bE").value = (lo + dlo).toFixed(2);
+      boxInfo();
+    }, function () { dlSay("Не удалось определить положение. Разрешите геолокацию сайту.", true); }, { enableHighAccuracy: false, timeout: 15000 });
+  });
+  ["bS", "bN", "bW", "bE"].forEach(function (id) { $(id).addEventListener("input", boxInfo); });
+  $("dlsite").addEventListener("click", async function () {
+    try {
+      dlSay("Загружаю map-data.json с сайта…", false);
+      var rs = await fetch("map-data.json", { cache: "no-cache" });
+      if (!rs.ok) throw new Error("файла map-data.json на сайте нет (HTTP " + rs.status + ")");
+      var n = await importText(await rs.text(), "f:site");
+      dlSay("Загружено объектов: " + n + ". " + statInfo(), false); drawMap();
+    } catch (ex) { dlSay("Не получилось: " + ((ex && ex.message) || ex), true); }
+  });
+  $("dlfile").addEventListener("change", async function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    try {
+      dlSay("Читаю файл…", false);
+      var n = await importText(await f.text(), "f:" + f.name + ":" + f.size);
+      dlSay("Из файла добавлено объектов: " + n + ". " + statInfo(), false); drawMap();
+    } catch (ex) { dlSay("Не получилось: " + ((ex && ex.message) || ex), true); }
+    this.value = "";
+  });
+  $("dlclr").addEventListener("click", async function () {
+    if (dl.busy) { dl.cancel = true; }
+    if (!idb) idb = await idbOpen();
+    await idbClear(); resetMapData(); dlSay("Скачанная карта удалена.", false); drawMap();
+  });
+
   $("assist").addEventListener("change", function () {
     if (mode !== "inertial") return;
     if (geoId != null && navigator.geolocation) { navigator.geolocation.clearWatch(geoId); geoId = null; }
@@ -958,6 +1389,10 @@ select { font: inherit; font-size: .95rem; letter-spacing: 0; text-transform: no
     if ($("assist").checked) watchGps(onFixAssist);
     else { have.gps = 0; renderPills(); }
   });
+
+  syncUi();
+  loadSaved();
+  boxInfo();
 
 })();
 </script>
